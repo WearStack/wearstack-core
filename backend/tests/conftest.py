@@ -1,4 +1,5 @@
 import os
+import tempfile
 from collections.abc import Iterator
 from typing import Any
 
@@ -15,6 +16,7 @@ TEST_DB_URL = os.environ.get(
 )
 # Must be set before the app (and its cached settings/engine) is imported.
 os.environ["DATABASE_URL"] = TEST_DB_URL
+os.environ["MEDIA_DIR"] = tempfile.mkdtemp(prefix="wearstack-test-media-")
 
 from app.db.session import Base, engine  # noqa: E402
 from app.main import app  # noqa: E402
@@ -105,5 +107,26 @@ def make_user(client: TestClient, owner: dict[str, str], roles: dict[str, str]) 
         )
         assert res.status_code == 201, res.text
         return login(TestClient(app), email, "user-password-1")
+
+    return _make
+
+
+@pytest.fixture
+def store_id(client: TestClient, owner: dict[str, str]) -> str:
+    return str(client.get("/stores", headers=owner).json()[0]["id"])
+
+
+@pytest.fixture
+def make_product(client: TestClient, owner: dict[str, str]) -> Any:
+    def _make(name: str = "Classic Shirt", price: str = "1299.00", **extra: Any) -> dict[str, Any]:
+        body = {
+            "name": name,
+            "selling_price": price,
+            "variants": [{"size": "M", "colour": "Blue"}, {"size": "L", "colour": "Blue"}],
+            **extra,
+        }
+        res = client.post("/products", headers=owner, json=body)
+        assert res.status_code == 201, res.text
+        return res.json()
 
     return _make

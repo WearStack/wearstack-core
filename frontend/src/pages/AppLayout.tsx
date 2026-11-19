@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button'
 import { useAuthStore } from '@/stores/auth'
 
 const NAV = [
+  { to: '/products', label: 'Products', permission: 'product:read' },
+  { to: '/inventory', label: 'Inventory', permission: 'inventory:read' },
   { to: '/stores', label: 'Stores', permission: 'store:read' },
   { to: '/users', label: 'Users', permission: 'user:read' },
   { to: '/roles', label: 'Roles', permission: 'role:read' },

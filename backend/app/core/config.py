@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 14
     cookie_secure: bool = False
+    media_dir: str = "media"
+    max_image_bytes: int = 5 * 1024 * 1024
     cors_origins: list[str] = ["http://localhost:5173"]
 
     @model_validator(mode="after")

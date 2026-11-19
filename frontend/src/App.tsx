@@ -5,6 +5,8 @@ import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth'
 import { SetupPage } from '@/features/auth/SetupPage'
 import { AppLayout } from '@/pages/AppLayout'
 import { HomePage } from '@/pages/HomePage'
+import { InventoryPage } from '@/pages/InventoryPage'
+import { ProductsPage } from '@/pages/ProductsPage'
 import { RolesPage } from '@/pages/RolesPage'
 import { StoresPage } from '@/pages/StoresPage'
 import { UsersPage } from '@/pages/UsersPage'
@@ -23,6 +25,22 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
+          <Route
+            path="products"
+            element={
+              <RequirePermission permission="product:read">
+                <ProductsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="inventory"
+            element={
+              <RequirePermission permission="inventory:read">
+                <InventoryPage />
+              </RequirePermission>
+            }
+          />
           <Route
             path="stores"
             element={

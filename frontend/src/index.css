@@ -128,3 +128,14 @@
     @apply font-sans;
   }
 }
+
+/* Wearstack brand colours from the approved prototype (docs/ui/wearstack_prototype.html). */
+@theme {
+  --color-ws-navy: #124b9b;
+  --color-ws-blue: #3478f6;
+  --color-ws-orange: #ff8a32;
+  --color-ws-ink: #142d55;
+  --color-ws-muted: #718096;
+  --color-ws-bg: #f3f6fb;
+  --color-ws-line: #dfe7f1;
+}
