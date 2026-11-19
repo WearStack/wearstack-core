@@ -7,6 +7,13 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: wearstack, POSTGRES_PASSWORD: wearstack, POSTGRES_DB: wearstack }
+        ports: ["5434:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wearstack" --health-interval 5s --health-retries 10
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

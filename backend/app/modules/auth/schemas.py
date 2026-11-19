@@ -1,0 +1,23 @@
+import uuid
+
+from pydantic import BaseModel, EmailStr
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class MeResponse(BaseModel):
+    id: uuid.UUID
+    business_id: uuid.UUID
+    email: str
+    full_name: str
+    role: str
+    permissions: list[str]
+    store_ids: list[uuid.UUID]

@@ -1,30 +1,54 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { API_URL } from '@/lib/api'
-
-function Home() {
-  const { data, isError, isLoading, refetch } = useQuery({
-    queryKey: ['health'],
-    queryFn: async () => (await fetch(`${API_URL}/health`)).json() as Promise<{ status: string }>,
-  })
-  return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-2xl font-semibold">Wearstack</h1>
-      <p className="mt-2 text-sm text-gray-600">
-        API: {isLoading ? 'checking…' : isError ? 'unreachable' : data?.status}
-      </p>
-      <Button className="mt-4" onClick={() => refetch()}>
-        Recheck API
-      </Button>
-    </main>
-  )
-}
+import { LoginPage } from '@/features/auth/LoginPage'
+import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth'
+import { SetupPage } from '@/features/auth/SetupPage'
+import { AppLayout } from '@/pages/AppLayout'
+import { HomePage } from '@/pages/HomePage'
+import { RolesPage } from '@/pages/RolesPage'
+import { StoresPage } from '@/pages/StoresPage'
+import { UsersPage } from '@/pages/UsersPage'
+import { useAuthStore } from '@/stores/auth'
 
 export default function App() {
+  const bootstrap = useAuthStore((s) => s.bootstrap)
+  useEffect(() => {
+    void bootstrap()
+  }, [bootstrap])
+
   return (
     <Routes>
-      <Route path="/" element={<Home />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/setup" element={<SetupPage />} />
+      <Route element={<RequireAuth />}>
+        <Route element={<AppLayout />}>
+          <Route index element={<HomePage />} />
+          <Route
+            path="stores"
+            element={
+              <RequirePermission permission="store:read">
+                <StoresPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="users"
+            element={
+              <RequirePermission permission="user:read">
+                <UsersPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="roles"
+            element={
+              <RequirePermission permission="role:read">
+                <RolesPage />
+              </RequirePermission>
+            }
+          />
+        </Route>
+      </Route>
     </Routes>
   )
 }
