@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -23,7 +24,10 @@ from app.models.mixins import Timestamps, UUIDPrimaryKey
 
 class Purchase(UUIDPrimaryKey, Timestamps, Base):
     __tablename__ = "purchases"
-    __table_args__ = (UniqueConstraint("business_id", "supplier_id", "bill_number"),)
+    __table_args__ = (
+        UniqueConstraint("business_id", "supplier_id", "bill_number"),
+        Index("ix_purchases_store_bill_date", "store_id", "bill_date"),
+    )
 
     business_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("businesses.id"), index=True)
     store_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stores.id"), index=True)

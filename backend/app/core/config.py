@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 14
     cookie_secure: bool = False
+    # Where the refresh cookie is sent. If a proxy serves the API under /api, set /api/auth.
+    cookie_path: str = "/auth"
     # Which price decides the apparel price slab. Confirm with your accountant (plan item D6).
     gst_slab_basis: Literal["after_discount", "before_discount"] = "after_discount"
     # Discounts above this share of a line need the sale:discount permission.

@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -31,6 +32,7 @@ class Sale(UUIDPrimaryKey, Base):
     __table_args__ = (
         UniqueConstraint("business_id", "idempotency_key", name="uq_sales_idempotency_key"),
         CheckConstraint("grand_total >= 0", name="non_negative_total"),
+        Index("ix_sales_store_sold_at", "store_id", "sold_at"),  # reports range-scan by store
     )
 
     business_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("businesses.id"), index=True)

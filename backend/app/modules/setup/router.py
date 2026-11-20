@@ -1,10 +1,11 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
+from app.core.gstin import validate_gstin
 from app.core.security import hash_password
 from app.db.session import get_db
 from app.models import Business, Store, User, UserStoreAccess
@@ -19,12 +20,14 @@ _SETUP_LOCK = 748_201  # arbitrary advisory-lock key, serialises concurrent firs
 class SetupRequest(BaseModel):
     business_name: str = Field(min_length=1, max_length=200)
     state_code: str = Field(pattern=r"^\d{2}$")
-    gstin: str | None = Field(default=None, pattern=r"^\d{2}[A-Z0-9]{13}$")
+    gstin: str | None = None
     store_name: str = Field(min_length=1, max_length=200)
     store_code: str = Field(min_length=1, max_length=20)
     owner_name: str = Field(min_length=1, max_length=200)
     owner_email: EmailStr
     owner_password: str = Field(min_length=10, max_length=128)
+
+    _check_gstin = field_validator("gstin")(validate_gstin)
 
 
 class SetupResponse(BaseModel):

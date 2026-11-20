@@ -232,10 +232,10 @@ export function InventoryPage() {
                   <TableCell>{r.sku}</TableCell>
                   <TableCell>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${r.low_stock ? 'bg-[#fff0e3] text-[#a84e0d]' : 'bg-ws-bg text-ws-ink'}`}
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${r.low_stock || r.quantity === 0 ? 'bg-[#fff0e3] text-[#a84e0d]' : 'bg-ws-bg text-ws-ink'}`}
                     >
                       {r.quantity}
-                      {r.low_stock && (r.quantity === 0 ? ' · out' : ' · low')}
+                      {r.quantity === 0 ? ' · out' : r.low_stock ? ' · low' : ''}
                     </span>
                   </TableCell>
                 </TableRow>

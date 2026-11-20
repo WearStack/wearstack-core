@@ -69,7 +69,9 @@ def _label(v: ProductVariant) -> str:
     return " / ".join(x for x in (v.size, v.colour) if x) or "Default"
 
 
-def create_sale(db: Session, ctx: AuthContext, body: SaleIn) -> tuple[Sale, bool]:
+def create_sale(
+    db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None
+) -> tuple[Sale, bool]:
     """Creates a finalised sale in one transaction: stock, tax, invoice number, payments.
     Returns (sale, replayed). A retry with the same idempotency key returns the first result."""
     existing = find_existing(db, ctx.business_id, body.idempotency_key)
@@ -78,7 +80,7 @@ def create_sale(db: Session, ctx: AuthContext, body: SaleIn) -> tuple[Sale, bool
             raise SaleError(409, "This idempotency key was already used for a different sale")
         return existing, True
     try:
-        sale = _create(db, ctx, body)
+        sale = _create(db, ctx, body, now)
         db.commit()
         return sale, False
     except IntegrityError:
@@ -93,7 +95,9 @@ def create_sale(db: Session, ctx: AuthContext, body: SaleIn) -> tuple[Sale, bool
         raise
 
 
-def price_sale(db: Session, ctx: AuthContext, body: SaleIn) -> PricedSale:
+def price_sale(
+    db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None
+) -> PricedSale:
     """Validates the basket and computes prices, GST and totals. Writes nothing."""
     settings = get_settings()
     ctx.require_store(body.store_id)
@@ -103,6 +107,11 @@ def price_sale(db: Session, ctx: AuthContext, body: SaleIn) -> PricedSale:
         raise SaleError(404, "Store not found")
     if not store.is_active:
         raise SaleError(409, "This store is inactive")
+    if not (store.gstin or business.gstin):
+        # A GST invoice must carry the seller's GSTIN, and an unregistered seller cannot charge GST.
+        raise SaleError(
+            409, "Add your GSTIN in Stores before billing: a GST invoice needs the seller's GSTIN"
+        )
 
     customer: Customer | None = None
     if body.customer_id:
@@ -110,7 +119,7 @@ def price_sale(db: Session, ctx: AuthContext, body: SaleIn) -> PricedSale:
         if customer is None or customer.business_id != ctx.business_id or not customer.is_active:
             raise SaleError(422, "Unknown customer")
 
-    now = datetime.now(IST)
+    now = now or datetime.now(IST)  # tests and the demo seed pass a fixed time
     on = now.date()
     place_of_supply = (customer.state_code if customer and customer.state_code else None) or (
         store.state_code
@@ -198,8 +207,8 @@ def price_sale(db: Session, ctx: AuthContext, body: SaleIn) -> PricedSale:
     )
 
 
-def _create(db: Session, ctx: AuthContext, body: SaleIn) -> Sale:
-    priced = price_sale(db, ctx, body)
+def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None) -> Sale:
+    priced = price_sale(db, ctx, body, now)
     store, business, customer = priced.store, priced.business, priced.customer
     lines, now = priced.lines, priced.now
     items = [i for i, _ in lines]

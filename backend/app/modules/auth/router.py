@@ -20,7 +20,7 @@ def _set_cookie(response: Response, raw: str) -> None:
         httponly=True,
         secure=s.cookie_secure,
         samesite="lax",
-        path="/auth",
+        path=s.cookie_path,
     )
 
 
@@ -45,7 +45,7 @@ def refresh(
             raise service.AuthError
         access, raw = service.refresh(db, refresh_token)
     except service.AuthError:
-        response.delete_cookie(COOKIE, path="/auth")
+        response.delete_cookie(COOKIE, path=get_settings().cookie_path)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired") from None
     _set_cookie(response, raw)
     return TokenResponse(access_token=access)
@@ -59,7 +59,7 @@ def logout(
 ) -> None:
     if refresh_token:
         service.logout(db, refresh_token)
-    response.delete_cookie(COOKIE, path="/auth")
+    response.delete_cookie(COOKIE, path=get_settings().cookie_path)
 
 
 @router.get("/me", response_model=MeResponse)

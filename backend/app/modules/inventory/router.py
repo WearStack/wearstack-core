@@ -102,8 +102,8 @@ def list_stock(
                 ProductVariant.barcode == q,
             )
         )
-    if low_stock:
-        stmt = stmt.where(qty <= reorder)
+    if low_stock:  # "low" means a reorder level is set and stock has reached it
+        stmt = stmt.where(reorder > 0, qty <= reorder)
     rows = db.execute(
         stmt.order_by(Product.name, ProductVariant.size, ProductVariant.colour)
         .limit(limit)
@@ -120,7 +120,7 @@ def list_stock(
             colour=v.colour,
             quantity=quantity,
             reorder_level=level,
-            low_stock=quantity <= level,
+            low_stock=level > 0 and quantity <= level,
         )
         for v, name, quantity, level in rows
     ]

@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from tests.conftest import OWNER, SETUP_BODY, login
@@ -81,3 +83,17 @@ def test_logout_revokes_refresh_token(client: TestClient, setup_ids: dict[str, s
 
 def test_refresh_without_cookie_is_401(client: TestClient) -> None:
     assert client.post("/auth/refresh").status_code == 401
+
+
+def test_api_docs_are_hidden_outside_development(monkeypatch: Any) -> None:
+    from app.core.config import get_settings
+    from app.main import create_app
+
+    with TestClient(create_app()) as dev:
+        assert dev.get("/openapi.json").status_code == 200  # tests run as development
+    monkeypatch.setattr(get_settings(), "environment", "production")
+    monkeypatch.setattr(get_settings(), "jwt_secret", "a-long-random-production-secret-value")
+    with TestClient(create_app()) as prod:
+        for path in ("/docs", "/redoc", "/openapi.json"):
+            assert prod.get(path).status_code == 404, path
+        assert prod.get("/health").status_code == 200

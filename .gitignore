@@ -226,3 +226,7 @@ node_modules/
 dist/
 .venv/
 media/
+backend/.venv
+backend/media
+.env.production
+backups/

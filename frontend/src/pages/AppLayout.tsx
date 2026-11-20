@@ -8,6 +8,7 @@ const NAV = [
   { to: '/inventory', label: 'Inventory', permission: 'inventory:read' },
   { to: '/purchases', label: 'Purchases', permission: 'purchase:read' },
   { to: '/customers', label: 'Customers', permission: 'customer:read' },
+  { to: '/reports', label: 'Reports', permission: 'report:read' },
   { to: '/stores', label: 'Stores', permission: 'store:read' },
   { to: '/users', label: 'Users', permission: 'user:read' },
   { to: '/roles', label: 'Roles', permission: 'role:read' },

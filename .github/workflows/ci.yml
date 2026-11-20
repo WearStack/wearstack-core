@@ -35,3 +35,34 @@ jobs:
       - run: npm run format:check
       - run: npm run typecheck
       - run: npm run build
+
+  # Runs the whole stack and drives it with a real browser: first-run setup, a GST sale with an
+  # invoice PDF, purchases, reports and exports. Needs an empty database, which a fresh CI run is.
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose up -d --build
+      - name: Wait for the API and the web app
+        run: |
+          for i in $(seq 1 60); do
+            curl -fs http://localhost:8010/health >/dev/null && curl -fs http://localhost:5173 >/dev/null && exit 0
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: e2e/package-lock.json }
+      - run: npm ci
+        working-directory: e2e
+      - run: npx playwright install --with-deps chromium
+        working-directory: e2e
+      - run: npm test
+        working-directory: e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: e2e/test-results
+

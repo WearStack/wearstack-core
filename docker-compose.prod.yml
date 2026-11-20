@@ -1,0 +1,52 @@
+# Production stack: docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-wearstack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env.production}
+      POSTGRES_DB: ${POSTGRES_DB:-wearstack}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-wearstack} -d ${POSTGRES_DB:-wearstack}"]
+      interval: 10s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-wearstack}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-wearstack}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET (openssl rand -hex 32)}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      COOKIE_PATH: /api/auth
+      MEDIA_DIR: /app/media
+      GST_SLAB_BASIS: ${GST_SLAB_BASIS:-after_discount}
+      FREE_DISCOUNT_PERCENT: ${FREE_DISCOUNT_PERCENT:-10}
+      CORS_ORIGINS: "[]"
+    volumes: [media:/app/media]
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    restart: unless-stopped
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes: [caddy_data:/data, caddy_config:/config]
+    depends_on: [backend]
+
+volumes:
+  pgdata:
+  media:
+  caddy_data:
+  caddy_config:

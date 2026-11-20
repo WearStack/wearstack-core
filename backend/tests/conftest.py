@@ -61,6 +61,7 @@ def client() -> Iterator[TestClient]:
 SETUP_BODY: dict[str, Any] = {
     "business_name": "Test Clothing Co",
     "state_code": "27",
+    "gstin": "27AAPFU0939F1ZV",
     "store_name": "Main Store",
     "store_code": "MAIN",
     "owner_name": "Olive Owner",

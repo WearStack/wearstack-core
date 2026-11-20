@@ -29,3 +29,25 @@ owner account. Migrations run automatically when the backend container starts.
 
 ## Adding UI components
     cd frontend && npx shadcn@latest add <component>
+
+## Demo data
+On an **empty development database** only:
+
+    docker compose exec backend uv run python -m app.seed_demo
+
+Creates a demo shop (two stores, 8 products, ~170 sales over 45 days) so you can explore reports.
+Log in as `owner@example.com`, `manager@example.com` or `cashier@example.com` /
+`demo-password-123`. It refuses to run outside development or if any business exists. Its GST
+rates are labelled DEMO and are not real rates.
+
+## End-to-end tests
+A real browser drives the running stack through a shop's first day (needs an empty database):
+
+    docker compose down -v && docker compose up -d --build
+    cd e2e && npm ci && npx playwright install chromium && npm test
+
+Set `BASE_URL` to run it against another deployment, e.g. the production stack.
+
+## Production
+See [docs/operations.md](docs/operations.md): deployment, nightly backups, restore, updating.
+

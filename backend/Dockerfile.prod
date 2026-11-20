@@ -1,0 +1,22 @@
+FROM python:3.12-slim AS build
+RUN pip install --no-cache-dir uv==0.9.21
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+# Production dependencies only (no pytest/ruff/mypy), exactly as locked.
+RUN uv sync --frozen --no-dev --no-install-project
+
+FROM python:3.12-slim
+RUN useradd --create-home --uid 10001 app
+WORKDIR /app
+COPY --from=build /app/.venv /app/.venv
+COPY alembic.ini ./
+COPY alembic ./alembic
+COPY app ./app
+RUN mkdir -p /app/media && chown -R app:app /app/media
+ENV PATH="/app/.venv/bin:$PATH" PYTHONUNBUFFERED=1
+USER app
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=5s --retries=5 \
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status == 200 else 1)"
+# Migrations run once before the workers start.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips='*'"]
