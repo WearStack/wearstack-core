@@ -43,9 +43,13 @@ class TaxRate(UUIDPrimaryKey, Timestamps, Base):
 
     __tablename__ = "tax_rates"
     __table_args__ = (
-        UniqueConstraint("business_id", "name", "effective_from", name="uq_tax_rates_name_from"),
+        # No-overlap is enforced by exclusion constraint ex_tax_rates_no_overlap (migration 0003).
         CheckConstraint("rate >= 0 AND rate <= 100", name="rate_range"),
         CheckConstraint("effective_to IS NULL OR effective_to >= effective_from", name="dates"),
+        CheckConstraint(
+            "min_unit_price IS NULL OR max_unit_price IS NULL OR max_unit_price > min_unit_price",
+            name="price_slab",
+        ),
     )
 
     business_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("businesses.id"), index=True)
@@ -53,6 +57,10 @@ class TaxRate(UUIDPrimaryKey, Timestamps, Base):
     rate: Mapped[Decimal] = mapped_column(Numeric(5, 2))  # total GST %, e.g. 5.00
     effective_from: Mapped[date] = mapped_column(Date)
     effective_to: Mapped[date | None] = mapped_column(Date)
+    # Optional per-unit price slab. Applies when min < price <= max (NULL = unbounded), so that
+    # "up to X" and "above X" slabs tile without a gap or overlap.
+    min_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    max_unit_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
 
 
 class Product(UUIDPrimaryKey, Timestamps, Base):

@@ -4,7 +4,10 @@ import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth'
 import { SetupPage } from '@/features/auth/SetupPage'
 import { AppLayout } from '@/pages/AppLayout'
+import { PosPage } from '@/features/pos/PosPage'
+import { CustomersPage } from '@/pages/CustomersPage'
 import { HomePage } from '@/pages/HomePage'
+import { PurchasesPage } from '@/pages/PurchasesPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProductsPage } from '@/pages/ProductsPage'
 import { RolesPage } from '@/pages/RolesPage'
@@ -25,6 +28,30 @@ export default function App() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<HomePage />} />
+          <Route
+            path="pos"
+            element={
+              <RequirePermission permission="sale:create">
+                <PosPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="purchases"
+            element={
+              <RequirePermission permission="purchase:read">
+                <PurchasesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="customers"
+            element={
+              <RequirePermission permission="customer:read">
+                <CustomersPage />
+              </RequirePermission>
+            }
+          />
           <Route
             path="products"
             element={

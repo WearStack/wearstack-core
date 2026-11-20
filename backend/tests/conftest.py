@@ -36,9 +36,11 @@ def _ensure_database() -> None:
 @pytest.fixture(scope="session", autouse=True)
 def _migrated_db() -> Iterator[None]:
     _ensure_database()
-    cfg = Config("alembic.ini")
-    command.downgrade(cfg, "base")
-    command.upgrade(cfg, "head")  # exercises the real migration
+    # Always start from an empty schema, so a stale test database can never mask a migration bug.
+    with engine.begin() as conn:
+        conn.exec_driver_sql("DROP SCHEMA public CASCADE")
+        conn.exec_driver_sql("CREATE SCHEMA public")
+    command.upgrade(Config("alembic.ini"), "head")  # exercises the real migrations
     yield
 
 

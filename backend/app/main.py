@@ -9,8 +9,11 @@ from app.db.session import engine
 from app.modules.auditlog import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.catalog import images, lookups, products
+from app.modules.customers.router import router as customers_router
 from app.modules.inventory.router import router as inventory_router
+from app.modules.purchasing.router import router as purchasing_router
 from app.modules.roles.router import router as roles_router
+from app.modules.sales.router import router as sales_router
 from app.modules.setup.router import router as setup_router
 from app.modules.stores.router import router as stores_router
 from app.modules.users.router import router as users_router
@@ -39,6 +42,9 @@ def create_app() -> FastAPI:
         products.router,
         images.router,
         inventory_router,
+        customers_router,
+        sales_router,
+        purchasing_router,
     ):
         app.include_router(r)
 

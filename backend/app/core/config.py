@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,10 @@ class Settings(BaseSettings):
     access_token_minutes: int = 15
     refresh_token_days: int = 14
     cookie_secure: bool = False
+    # Which price decides the apparel price slab. Confirm with your accountant (plan item D6).
+    gst_slab_basis: Literal["after_discount", "before_discount"] = "after_discount"
+    # Discounts above this share of a line need the sale:discount permission.
+    free_discount_percent: int = 10
     media_dir: str = "media"
     max_image_bytes: int = 5 * 1024 * 1024
     cors_origins: list[str] = ["http://localhost:5173"]

@@ -24,6 +24,9 @@ class TaxRateIn(BaseModel):
     rate: Annotated[Decimal, Field(ge=0, le=100, max_digits=5, decimal_places=2)]
     effective_from: date
     effective_to: date | None = None
+    # Optional price slab: applies when min_unit_price < price <= max_unit_price (NULL = open).
+    min_unit_price: Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)] | None = None
+    max_unit_price: Annotated[Decimal, Field(ge=0, max_digits=10, decimal_places=2)] | None = None
 
 
 class TaxRateOut(TaxRateIn):

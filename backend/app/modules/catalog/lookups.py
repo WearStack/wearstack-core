@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -14,6 +15,19 @@ from app.modules.catalog.schemas import NameIn, NameOut, TaxRateIn, TaxRateOut
 from app.services.audit import record_audit
 
 router = APIRouter(tags=["catalogue"])
+
+
+def _windows_overlap(a_from: date, a_to: date | None, b_from: date, b_to: date | None) -> bool:
+    return a_from <= (b_to or date.max) and b_from <= (a_to or date.max)
+
+
+def _slabs_overlap(
+    a_min: Decimal | None, a_max: Decimal | None, b_min: Decimal | None, b_max: Decimal | None
+) -> bool:
+    """Slabs are (min, max]; NULL bounds are open. Two slabs overlap if some price is in both."""
+    lo_a, hi_a = a_min if a_min is not None else Decimal("-1"), a_max
+    lo_b, hi_b = b_min if b_min is not None else Decimal("-1"), b_max
+    return (hi_b is None or lo_a < hi_b) and (hi_a is None or lo_b < hi_a)
 
 
 def _name_routes(path: str, model: type[Brand] | type[Category], label: str) -> None:
@@ -87,17 +101,29 @@ def create_tax_rate(
 ) -> Any:
     if body.effective_to and body.effective_to < body.effective_from:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "effective_to is before start")
-    end = body.effective_to or date.max
+    lo, hi = body.min_unit_price, body.max_unit_price
+    if lo is not None and hi is not None and hi <= lo:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "max price must exceed min price"
+        )
     for other in db.scalars(
         select(TaxRate).where(TaxRate.business_id == ctx.business_id, TaxRate.name == body.name)
     ):
-        if body.effective_from <= (other.effective_to or date.max) and other.effective_from <= end:
+        if _windows_overlap(
+            body.effective_from, body.effective_to, other.effective_from, other.effective_to
+        ) and _slabs_overlap(lo, hi, other.min_unit_price, other.max_unit_price):
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "Overlaps an existing rate with the same name"
             )
     rate = TaxRate(business_id=ctx.business_id, **body.model_dump())
     db.add(rate)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:  # the database's exclusion constraint caught a concurrent overlap
+        db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Overlaps an existing rate with the same name"
+        ) from None
     record_audit(
         db,
         business_id=ctx.business_id,
@@ -131,8 +157,10 @@ def end_tax_rate(
             TaxRate.id != rate.id,
         )
     ):
-        if rate.effective_from <= (other.effective_to or date.max) and (
-            other.effective_from <= effective_to
+        if _windows_overlap(
+            rate.effective_from, effective_to, other.effective_from, other.effective_to
+        ) and _slabs_overlap(
+            rate.min_unit_price, rate.max_unit_price, other.min_unit_price, other.max_unit_price
         ):
             raise HTTPException(
                 status.HTTP_409_CONFLICT, "Overlaps an existing rate with the same name"
