@@ -102,3 +102,12 @@ Derived from `wearstack_project_brief.md`. Status: **draft for review**.
 ## 6. Suggested Next Step
 
 D1, D4, D5 resolved (recommended options). Remaining open: D2, D3, D6. Start Phase 0.
+
+## 7. Parked items (agreed, not scheduled: do not forget)
+
+| Item | Decision | Notes |
+|------|----------|-------|
+| **Admin page for user management** | **No self-signup, ever.** Accounts are created only by an administrator, from one dedicated admin page. | Today the Owner adds users on the *Users* page (create, deactivate, reset password, role and store access via the API). The parked work is a proper admin area: invite/create flow, role and store assignment in the UI, password reset, deactivate/reactivate, session sign-out, and an activity view from the audit log. Keep signup endpoints out of the product. |
+| Password reset by email | Not built | The login screen tells people to ask their administrator. Revisit with the admin page. |
+| Login rate limiting | Not built | Needed before the app is exposed to the internet. |
+

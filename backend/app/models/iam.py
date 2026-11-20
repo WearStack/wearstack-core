@@ -69,4 +69,7 @@ class RefreshToken(UUIDPrimaryKey, Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)  # sha256 hex
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # "Remember me": a persistent session lasts days; otherwise the cookie ends with the browser
+    # session and the token expires after a few hours. Rotation keeps the choice.
+    persistent: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

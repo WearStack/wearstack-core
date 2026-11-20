@@ -318,3 +318,13 @@ def test_roles_have_expected_system_set(client: TestClient, owner: dict[str, str
     assert "sale:create" in got["Cashier"]["permissions"]
     with SessionLocal() as db:
         assert db.scalars(select(Role)).all()
+
+
+def test_stores_are_listed_oldest_first(client: TestClient, owner: dict[str, str]) -> None:
+    for code in ("ZED", "ALPHA"):  # created in this order, so "ALPHA" must not jump ahead of "MAIN"
+        client.post("/stores", headers=owner, json={"code": code, "name": code, "state_code": "27"})
+    assert [s["code"] for s in client.get("/stores", headers=owner).json()] == [
+        "MAIN",
+        "ZED",
+        "ALPHA",
+    ]

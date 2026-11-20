@@ -1,9 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Table,
@@ -25,6 +27,67 @@ const schema = z.object({
   store_ids: z.array(z.string()),
 })
 type Values = z.infer<typeof schema>
+
+/** Sets a new password for someone who forgot theirs. It also ends all their sessions. */
+function ResetPassword({ user }: { user: UserRow }) {
+  const [open, setOpen] = useState(false)
+  const [password, setPassword] = useState('')
+  const [done, setDone] = useState(false)
+  const reset = useMutation({
+    mutationFn: () => api<UserRow>(`/users/${user.id}`, 'PATCH', { password }),
+    onSuccess: () => {
+      setPassword('')
+      setOpen(false)
+      setDone(true)
+    },
+  })
+  if (!open) {
+    return (
+      <span className="inline-flex items-center gap-2">
+        {done && <span className="text-xs text-green-700">Password changed</span>}
+        <Button
+          variant="outline"
+          size="sm"
+          aria-label={`Reset password for ${user.full_name}`}
+          onClick={() => {
+            setDone(false)
+            setOpen(true)
+          }}
+        >
+          Reset password
+        </Button>
+      </span>
+    )
+  }
+  return (
+    <form
+      className="inline-flex flex-wrap items-center justify-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault()
+        reset.mutate()
+      }}
+    >
+      <Input
+        type="password"
+        autoComplete="new-password"
+        className="h-8 w-48"
+        placeholder="New password (10+ characters)"
+        aria-label={`New password for ${user.full_name}`}
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+      <Button size="sm" type="submit" disabled={password.length < 10 || reset.isPending}>
+        Set password
+      </Button>
+      <Button size="sm" type="button" variant="outline" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
+      {reset.isError && (
+        <span className="text-destructive w-full text-xs">{reset.error.message}</span>
+      )}
+    </form>
+  )
+}
 
 export function UsersPage() {
   const qc = useQueryClient()
@@ -79,7 +142,8 @@ export function UsersPage() {
               <TableCell>{roleName(u.role_id)}</TableCell>
               <TableCell>{u.is_active ? 'Active' : 'Inactive'}</TableCell>
               {canWrite && (
-                <TableCell className="text-right">
+                <TableCell className="space-x-2 text-right">
+                  <ResetPassword user={u} />
                   <Button variant="outline" size="sm" onClick={() => toggle.mutate(u)}>
                     {u.is_active ? 'Deactivate' : 'Activate'}
                   </Button>

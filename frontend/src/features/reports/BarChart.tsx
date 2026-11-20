@@ -6,6 +6,16 @@ interface Props {
   title: string
 }
 
+/** Up to five evenly spaced labels, first and last included. */
+function ticks(labels: string[]): string[] {
+  if (labels.length <= 5) return labels
+  const n = 5
+  return Array.from(
+    { length: n },
+    (_, i) => labels[Math.round((i * (labels.length - 1)) / (n - 1))],
+  )
+}
+
 /** Simple bars in the brand colours; each bar carries its exact value for hover and screen readers. */
 export function BarChart({ labels, values, title }: Props) {
   const max = Math.max(...values, 1)
@@ -24,8 +34,9 @@ export function BarChart({ labels, values, title }: Props) {
         ))}
       </div>
       <div className="mt-1 flex justify-between text-[10px] text-ws-muted">
-        <span>{labels[0]}</span>
-        <span>{labels[labels.length - 1]}</span>
+        {ticks(labels).map((t) => (
+          <span key={t}>{t}</span>
+        ))}
       </div>
     </figure>
   )

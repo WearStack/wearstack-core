@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { api, apiBlob } from '@/lib/api'
 import { fromPaise, toPaise } from '@/lib/money'
-import type { Quote, SaleResult, Store } from '@/lib/types'
+import { useActiveStore } from '@/lib/useActiveStore'
+import type { Quote, SaleResult } from '@/lib/types'
 import { useCartStore } from '@/stores/cart'
 import { Cart } from './Cart'
 import { Payments } from './Payments'
@@ -20,9 +21,7 @@ interface Done {
 export function PosPage() {
   const qc = useQueryClient()
   const { lines, customer, saleKey, clear } = useCartStore()
-  const stores = useQuery({ queryKey: ['stores'], queryFn: () => api<Store[]>('/stores') })
-  const [chosen, setChosen] = useState('')
-  const storeId = chosen || stores.data?.find((s) => s.is_active)?.id || ''
+  const { storeId } = useActiveStore()
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [done, setDone] = useState<Done | null>(null)
 
@@ -96,26 +95,6 @@ export function PosPage() {
           <h1 className="text-2xl font-semibold text-ws-ink">Point of Sale</h1>
           <p className="text-sm text-ws-muted">Create a new customer transaction.</p>
         </div>
-        {(stores.data?.length ?? 0) > 1 && (
-          <select
-            className="border-input h-9 rounded-md border bg-white px-2 text-sm"
-            value={storeId}
-            aria-label="Store"
-            onChange={(e) => {
-              setChosen(e.target.value)
-              clear()
-              setPayments([])
-            }}
-          >
-            {stores.data
-              ?.filter((s) => s.is_active)
-              .map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-          </select>
-        )}
       </div>
 
       {done && (

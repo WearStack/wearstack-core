@@ -31,6 +31,7 @@ function BusinessCard({ canWrite }: { canWrite: boolean }) {
       setEditing(false)
       void qc.invalidateQueries({ queryKey: ['business'] })
       void qc.invalidateQueries({ queryKey: ['stores'] })
+      void qc.invalidateQueries({ queryKey: ['my-stores'] })
     },
   })
   const b = business.data
@@ -113,6 +114,7 @@ function GstinCell({ store, canWrite }: { store: Store; canWrite: boolean }) {
     onSuccess: () => {
       setEditing(false)
       void qc.invalidateQueries({ queryKey: ['stores'] })
+      void qc.invalidateQueries({ queryKey: ['my-stores'] })
     },
   })
   if (!editing) {
@@ -169,11 +171,15 @@ export function StoresPage() {
     onSuccess: () => {
       form.reset()
       void qc.invalidateQueries({ queryKey: ['stores'] })
+      void qc.invalidateQueries({ queryKey: ['my-stores'] })
     },
   })
   const toggle = useMutation({
     mutationFn: (s: Store) => api<Store>(`/stores/${s.id}`, 'PATCH', { is_active: !s.is_active }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['stores'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['stores'] })
+      void qc.invalidateQueries({ queryKey: ['my-stores'] })
+    },
   })
 
   return (

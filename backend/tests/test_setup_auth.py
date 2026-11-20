@@ -97,3 +97,97 @@ def test_api_docs_are_hidden_outside_development(monkeypatch: Any) -> None:
         for path in ("/docs", "/redoc", "/openapi.json"):
             assert prod.get(path).status_code == 404, path
         assert prod.get("/health").status_code == 200
+
+
+def test_every_signed_in_user_can_list_their_own_stores(
+    client: TestClient, owner: dict[str, str], make_user: Any
+) -> None:
+    main = client.get("/stores", headers=owner).json()[0]
+    other = client.post(
+        "/stores", headers=owner, json={"code": "B2", "name": "Branch", "state_code": "27"}
+    ).json()
+    cashier = make_user("Cashier", "cash@example.com", store_ids=[other["id"]])
+    # The Cashier role has no store:read, so /stores is closed to them...
+    assert client.get("/stores", headers=cashier).status_code == 403
+    # ...but they can still learn which store they work in, and only that one.
+    mine = client.get("/auth/stores", headers=cashier)
+    assert mine.status_code == 200
+    assert [s["id"] for s in mine.json()] == [other["id"]]
+    assert set(mine.json()[0]) == {
+        "id",
+        "code",
+        "name",
+        "address",
+        "state_code",
+        "is_active",
+    }  # no GSTIN
+    assert [s["code"] for s in client.get("/auth/stores", headers=owner).json()] == [
+        main["code"],
+        "B2",
+    ]
+    assert client.get("/auth/stores").status_code == 401
+
+
+# ---- "Remember me" ----
+def _login_cookie(client: TestClient, remember: bool | None) -> str:
+    body: dict[str, Any] = {**OWNER}
+    if remember is not None:
+        body["remember"] = remember
+    res = client.post("/auth/login", json=body)
+    assert res.status_code == 200, res.text
+    return next(v for k, v in res.headers.multi_items() if k == "set-cookie")
+
+
+def test_remembered_sessions_get_a_persistent_cookie_others_a_session_cookie(
+    client: TestClient, setup_ids: dict[str, str]
+) -> None:
+    kept = _login_cookie(client, True)
+    assert "Max-Age=1209600" in kept and "HttpOnly" in kept  # 14 days
+    forgotten = _login_cookie(client, False)
+    assert (
+        "Max-Age" not in forgotten and "expires" not in forgotten.lower()
+    )  # ends with the browser
+    assert "HttpOnly" in forgotten
+    # The safe default when a client does not say: do not persist.
+    assert "Max-Age" not in _login_cookie(client, None)
+
+
+def test_refresh_keeps_the_remember_choice_and_the_matching_lifetime(
+    client: TestClient, setup_ids: dict[str, str]
+) -> None:
+    from datetime import UTC, datetime, timedelta
+
+    from sqlalchemy import text
+
+    from app.db.session import engine
+
+    for remember, hours in ((True, 14 * 24), (False, 12)):
+        client.cookies.clear()
+        _login_cookie(client, remember)
+        res = client.post("/auth/refresh")  # rotates the token
+        assert res.status_code == 200
+        cookie = next(v for k, v in res.headers.multi_items() if k == "set-cookie")
+        assert ("Max-Age" in cookie) is remember  # the choice survives rotation
+        with engine.connect() as conn:
+            persistent, expires = conn.execute(
+                text(
+                    "SELECT persistent, expires_at FROM refresh_tokens "
+                    "ORDER BY created_at DESC LIMIT 1"
+                )
+            ).one()
+        assert persistent is remember
+        left = expires - datetime.now(UTC)
+        assert timedelta(hours=hours) - timedelta(minutes=5) < left <= timedelta(hours=hours)
+
+
+def test_a_session_that_was_not_remembered_expires_after_hours_not_days(
+    client: TestClient, setup_ids: dict[str, str]
+) -> None:
+    from sqlalchemy import text
+
+    from app.db.session import engine
+
+    _login_cookie(client, False)
+    with engine.begin() as conn:  # pretend 13 hours have passed (the limit is 12)
+        conn.execute(text("UPDATE refresh_tokens SET expires_at = now() - interval '1 hour'"))
+    assert client.post("/auth/refresh").status_code == 401

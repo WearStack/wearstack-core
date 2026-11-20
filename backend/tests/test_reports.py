@@ -1,7 +1,7 @@
 import csv
 import io
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal as D
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -422,3 +422,189 @@ def test_reports_are_consistent_after_a_real_sale_through_the_api(
     stock = rep(client, owner, "stock")
     assert stock["totals"]["quantity"] == 3
     assert login  # imported for parity with other test modules
+
+
+# ---- overview (the front page) ----
+@pytest.mark.parametrize(
+    ("rng", "today", "expected"),
+    [
+        # Saturday 21 Nov 2026
+        (
+            "today",
+            date(2026, 11, 21),
+            (date(2026, 11, 21), date(2026, 11, 21), date(2026, 11, 20), date(2026, 11, 20)),
+        ),
+        # Week = Monday..today; compared with last week over the same elapsed days (Mon..Sat).
+        (
+            "week",
+            date(2026, 11, 21),
+            (date(2026, 11, 16), date(2026, 11, 21), date(2026, 11, 9), date(2026, 11, 14)),
+        ),
+        # On a Monday the week has one day so far, and so does the comparison.
+        (
+            "week",
+            date(2026, 11, 16),
+            (date(2026, 11, 16), date(2026, 11, 16), date(2026, 11, 9), date(2026, 11, 9)),
+        ),
+        (
+            "month",
+            date(2026, 11, 21),
+            (date(2026, 11, 1), date(2026, 11, 21), date(2026, 10, 1), date(2026, 10, 21)),
+        ),
+        # 31 March compared with February: the previous window is clamped to February's end.
+        (
+            "month",
+            date(2026, 3, 31),
+            (date(2026, 3, 1), date(2026, 3, 31), date(2026, 2, 1), date(2026, 2, 28)),
+        ),
+        (
+            "month",
+            date(2026, 1, 15),
+            (date(2026, 1, 1), date(2026, 1, 15), date(2025, 12, 1), date(2025, 12, 15)),
+        ),
+    ],
+)
+def test_period_bounds(rng: Any, today: date, expected: tuple[date, date, date, date]) -> None:
+    from app.services.reports import period_bounds
+
+    assert period_bounds(rng, today) == expected
+
+
+def test_growth_percentages() -> None:
+    from app.services.reports import _growth
+
+    assert _growth(D("150"), D("100")) == "50.0"
+    assert _growth(D("50"), D("100")) == "-50.0"
+    assert _growth(D("100"), D("100")) == "0.0"
+    assert _growth(D("100"), D("0")) is None  # nothing to compare with: no made-up percentage
+    assert _growth(3, 2) == "50.0"
+
+
+def test_overview_today_compares_with_yesterday_and_charts_by_hour(
+    client: TestClient, owner: dict[str, str], prods: dict[str, Any]
+) -> None:
+    now = datetime.now(IST)
+    day = now.replace(hour=10, minute=15, second=0, microsecond=0)
+    insert_sale(client, owner, prods["a"], "Alpha", day, price="1000.00")
+    insert_sale(client, owner, prods["a"], "Alpha", day.replace(minute=45), price="1000.00")
+    insert_sale(client, owner, prods["a"], "Alpha", day - timedelta(days=1), price="1000.00")
+    o = client.get("/reports/overview", headers=owner, params={"range": "today"}).json()
+    assert (o["orders"], o["revenue"]) == (2, "2000.00")
+    assert (o["orders_previous"], o["revenue_previous"]) == (1, "1000.00")
+    assert o["revenue_growth"] == "100.0" and o["orders_growth"] == "100.0"
+    s = o["series"]
+    assert s["kind"] == "hour"
+    pts = {p["label"]: p["total"] for p in s["points"]}
+    assert pts["10 AM"] == "2000.00" and pts["9 AM"] == "0.00" and pts["9 PM"] == "0.00"
+    assert [p["label"] for p in s["points"]][0] == "9 AM" and len(s["points"]) == 13  # 9 AM..9 PM
+
+
+def test_hourly_chart_widens_for_sales_outside_trading_hours(
+    client: TestClient, owner: dict[str, str], prods: dict[str, Any]
+) -> None:
+    now = datetime.now(IST)
+    insert_sale(client, owner, prods["a"], "Alpha", now.replace(hour=6, minute=30))
+    insert_sale(client, owner, prods["a"], "Alpha", now.replace(hour=23, minute=30))
+    labels = [
+        p["label"]
+        for p in client.get("/reports/overview", headers=owner).json()["series"]["points"]
+    ]
+    assert labels[0] == "6 AM" and labels[-1] == "11 PM"  # nothing sold is hidden
+
+
+def test_overview_week_and_month_chart_by_day(
+    client: TestClient, owner: dict[str, str], prods: dict[str, Any]
+) -> None:
+    now = datetime.now(IST)
+    today = now.date()
+    insert_sale(client, owner, prods["a"], "Alpha", now.replace(hour=12))
+    insert_sale(
+        client, owner, prods["a"], "Alpha", now.replace(hour=12) - timedelta(days=7)
+    )  # last week
+    wk = client.get("/reports/overview", headers=owner, params={"range": "week"}).json()
+    assert wk["series"]["kind"] == "day"
+    assert len(wk["series"]["points"]) == today.weekday() + 1  # Monday..today
+    assert wk["series"]["points"][-1]["label"] == today.isoformat()
+    assert (wk["orders"], wk["orders_previous"], wk["revenue_growth"]) == (1, 1, "0.0")
+
+    first_of_month = today.replace(day=1)
+    prev_month_first = (first_of_month - timedelta(days=1)).replace(day=1)
+    insert_sale(
+        client,
+        owner,
+        prods["b"],
+        "Beta",
+        datetime.combine(prev_month_first, now.time(), tzinfo=IST),
+        price="2000.00",
+    )
+    mo = client.get("/reports/overview", headers=owner, params={"range": "month"}).json()
+    assert (
+        len(mo["series"]["points"]) == today.day
+        and mo["series"]["points"][0]["label"] == first_of_month.isoformat()
+    )
+    assert mo["orders_previous"] == 1 and mo["revenue_previous"] == "2000.00"
+    assert mo["revenue_growth"] == f"{(D(mo['revenue']) - D('2000')) / D('2000') * 100:.1f}"
+
+
+def test_overview_without_a_previous_period_gives_no_growth_figure(
+    client: TestClient, owner: dict[str, str], prods: dict[str, Any]
+) -> None:
+    insert_sale(client, owner, prods["a"], "Alpha", datetime.now(IST).replace(hour=12))
+    o = client.get("/reports/overview", headers=owner, params={"range": "today"}).json()
+    assert (
+        o["revenue_previous"] == "0.00"
+        and o["revenue_growth"] is None
+        and o["orders_growth"] is None
+    )
+
+
+def test_overview_scopes_to_a_store_and_validates_the_range(
+    client: TestClient, owner: dict[str, str], store_id: str, prods: dict[str, Any]
+) -> None:
+    other = client.post(
+        "/stores", headers=owner, json={"code": "B2", "name": "B2", "state_code": "27"}
+    ).json()
+    noon = datetime.now(IST).replace(hour=12)
+    insert_sale(client, owner, prods["a"], "Alpha", noon, store=store_id)
+    insert_sale(client, owner, prods["a"], "Alpha", noon, store=other["id"], qty=3)
+    everything = client.get("/reports/overview", headers=owner).json()
+    assert everything["orders"] == 2
+    only_other = client.get(
+        "/reports/overview", headers=owner, params={"store_id": other["id"]}
+    ).json()
+    assert (only_other["orders"], only_other["revenue"]) == (1, "3000.00")
+    assert (
+        client.get("/reports/overview", headers=owner, params={"range": "year"}).status_code == 422
+    )
+    assert (
+        client.get(
+            "/reports/overview", headers=owner, params={"store_id": str(uuid.uuid4())}
+        ).status_code
+        == 403
+    )
+
+
+def test_inventory_alerts_can_be_sorted_lowest_stock_first(
+    client: TestClient, owner: dict[str, str], store_id: str, make_product: Any
+) -> None:
+    variants = [make_product(n, price="100.00")["variants"][0]["id"] for n in ("Aaa", "Bbb", "Ccc")]
+    for v, qty in zip(variants, (30, 5, 12), strict=True):
+        client.post(
+            "/inventory/movements",
+            headers=owner,
+            json={"store_id": store_id, "variant_id": v, "kind": "opening", "quantity": qty},
+        )
+        client.put(
+            "/inventory/reorder-level",
+            headers=owner,
+            json={"store_id": store_id, "variant_id": v, "reorder_level": 40},
+        )
+    params = {"store_id": store_id, "low_stock": True, "limit": 2}
+    by_stock = client.get("/inventory", headers=owner, params={**params, "sort": "stock"}).json()
+    assert [r["quantity"] for r in by_stock] == [5, 12]  # the most urgent first, capped at 2
+    by_name = client.get("/inventory", headers=owner, params=params).json()
+    assert [r["product_name"] for r in by_name] == ["Aaa", "Bbb"]
+    assert (
+        client.get("/inventory", headers=owner, params={**params, "sort": "price"}).status_code
+        == 422
+    )

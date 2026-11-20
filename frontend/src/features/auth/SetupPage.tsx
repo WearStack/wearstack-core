@@ -6,9 +6,9 @@ import { Navigate, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
 import { FormField } from '@/components/FormField'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth'
+import { AuthShell } from './AuthShell'
 
 const schema = z.object({
   business_name: z.string().min(1, 'Required'),
@@ -53,69 +53,64 @@ export function SetupPage() {
   }
 
   return (
-    <main className="mx-auto max-w-xl p-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Set up your business</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <FormField
-              label="Business name"
-              error={errors.business_name?.message}
-              {...register('business_name')}
-            />
-            <FormField
-              label="GST state code"
-              placeholder="27"
-              error={errors.state_code?.message}
-              {...register('state_code')}
-            />
-            <FormField
-              label="GSTIN (optional)"
-              error={errors.gstin?.message}
-              {...register('gstin')}
-            />
-            <div />
-            <FormField
-              label="First store name"
-              error={errors.store_name?.message}
-              {...register('store_name')}
-            />
-            <FormField
-              label="Store code"
-              placeholder="MAIN"
-              error={errors.store_code?.message}
-              {...register('store_code')}
-            />
-            <FormField
-              label="Your name"
-              error={errors.owner_name?.message}
-              {...register('owner_name')}
-            />
-            <FormField
-              label="Email"
-              type="email"
-              autoComplete="username"
-              error={errors.owner_email?.message}
-              {...register('owner_email')}
-            />
-            <FormField
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              error={errors.owner_password?.message}
-              {...register('owner_password')}
-            />
-            <div className="sm:col-span-2">
-              {error && <p className="text-destructive mb-2 text-sm">{error}</p>}
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating…' : 'Create business'}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-    </main>
+    <AuthShell wide>
+      <h2 className="mb-[9px] text-[30px] font-bold tracking-[-.8px] text-ws-ink">
+        Set up your business
+      </h2>
+      <p className="mb-6 text-[#77869b]">
+        Create your business, first store and owner account. This happens once.
+      </p>
+      <form onSubmit={handleSubmit(onSubmit)} className="grid gap-4 sm:grid-cols-2" noValidate>
+        <FormField
+          label="Business name"
+          error={errors.business_name?.message}
+          {...register('business_name')}
+        />
+        <FormField
+          label="GST state code"
+          placeholder="27"
+          error={errors.state_code?.message}
+          {...register('state_code')}
+        />
+        <FormField label="GSTIN (optional)" error={errors.gstin?.message} {...register('gstin')} />
+        <div />
+        <FormField
+          label="First store name"
+          error={errors.store_name?.message}
+          {...register('store_name')}
+        />
+        <FormField
+          label="Store code"
+          placeholder="MAIN"
+          error={errors.store_code?.message}
+          {...register('store_code')}
+        />
+        <FormField
+          label="Your name"
+          error={errors.owner_name?.message}
+          {...register('owner_name')}
+        />
+        <FormField
+          label="Email"
+          type="email"
+          autoComplete="username"
+          error={errors.owner_email?.message}
+          {...register('owner_email')}
+        />
+        <FormField
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          error={errors.owner_password?.message}
+          {...register('owner_password')}
+        />
+        <div className="sm:col-span-2">
+          {error && <p className="text-destructive mb-2 text-sm">{error}</p>}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating…' : 'Create business'}
+          </Button>
+        </div>
+      </form>
+    </AuthShell>
   )
 }

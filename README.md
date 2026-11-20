@@ -36,7 +36,7 @@ On an **empty development database** only:
     docker compose exec backend uv run python -m app.seed_demo
 
 Creates a demo shop (two stores, 8 products, ~170 sales over 45 days) so you can explore reports.
-Log in as `owner@example.com`, `manager@example.com` or `cashier@example.com` /
+Log in as `owner@yopmail.com`, `manager@yopmail.com` or `cashier@yopmail.com` /
 `demo-password-123`. It refuses to run outside development or if any business exists. Its GST
 rates are labelled DEMO and are not real rates.
 

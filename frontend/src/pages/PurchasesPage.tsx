@@ -12,9 +12,10 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { api } from '@/lib/api'
+import { useActiveStore } from '@/lib/useActiveStore'
 import { formatMoney } from '@/lib/format'
 import { fromPaise, toPaise } from '@/lib/money'
-import type { LookupVariant, Purchase, Store, Supplier } from '@/lib/types'
+import type { LookupVariant, Purchase, Supplier } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 
 interface Line {
@@ -298,14 +299,12 @@ function NewPurchase({ storeId }: { storeId: string }) {
 export function PurchasesPage() {
   const qc = useQueryClient()
   const canWrite = useAuthStore((s) => s.can('purchase:write'))
-  const stores = useQuery({ queryKey: ['stores'], queryFn: () => api<Store[]>('/stores') })
   const suppliers = useQuery({
     queryKey: ['suppliers'],
     queryFn: () => api<Supplier[]>('/suppliers'),
   })
-  const [chosen, setChosen] = useState('')
   const [open, setOpen] = useState<string | null>(null)
-  const storeId = chosen || stores.data?.[0]?.id || ''
+  const { storeId } = useActiveStore()
   const purchases = useQuery({
     queryKey: ['purchases', storeId],
     enabled: !!storeId,
@@ -332,18 +331,6 @@ export function PurchasesPage() {
           <h1 className="text-2xl font-semibold text-ws-ink">Purchases</h1>
           <p className="text-sm text-ws-muted">Supplier bills and goods receiving.</p>
         </div>
-        <select
-          className="border-input h-9 rounded-md border bg-white px-2 text-sm"
-          aria-label="Store"
-          value={storeId}
-          onChange={(e) => setChosen(e.target.value)}
-        >
-          {stores.data?.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
       </div>
       <div className="rounded-xl border border-ws-line bg-white p-4">
         <Table>

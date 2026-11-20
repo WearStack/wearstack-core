@@ -7,7 +7,7 @@ import { AppLayout } from '@/pages/AppLayout'
 import { PosPage } from '@/features/pos/PosPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
 import { CustomersPage } from '@/pages/CustomersPage'
-import { HomePage } from '@/pages/HomePage'
+import { OverviewPage } from '@/pages/OverviewPage'
 import { PurchasesPage } from '@/pages/PurchasesPage'
 import { InventoryPage } from '@/pages/InventoryPage'
 import { ProductsPage } from '@/pages/ProductsPage'
@@ -28,7 +28,7 @@ export default function App() {
       <Route path="/setup" element={<SetupPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
-          <Route index element={<HomePage />} />
+          <Route index element={<OverviewPage />} />
           <Route
             path="reports"
             element={

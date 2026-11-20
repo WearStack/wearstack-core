@@ -36,7 +36,8 @@ test.describe.serial('first day in the shop', () => {
     await page.getByLabel('Email').fill('demo@example.com')
     await page.getByLabel('Password').fill('demo-password-1')
     await page.getByRole('button', { name: 'Create business' }).click()
-    await expect(page.getByText('Welcome, Demo Owner')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+    await expect(page.getByText('Welcome back, Demo Owner')).toBeVisible()
   })
 
   test('catalogue: a GST rate, then a product with variants, HSN and cost', async () => {
@@ -150,11 +151,48 @@ test.describe.serial('first day in the shop', () => {
     await expect(page.getByText('received', { exact: true })).toBeVisible()
   })
 
-  test('home: today strip shows the two sales', async () => {
-    await nav('Wearstack')
-    await expect(page.getByText('REVENUE TODAY')).toBeVisible()
-    await expect(page.getByText('₹2,598.00')).toBeVisible()
-    await expect(page.getByText('ORDERS TODAY').locator('xpath=..')).toContainText('2')
+  test('front page: the frame shows the store and user, and the Overview matches the sales made', async () => {
+    // Give the L variant a reorder level, so it shows up under Inventory alerts (stock is 8).
+    await nav('Inventory')
+    await page.getByText('Classic Cotton Shirt').first().click()
+    await page.getByLabel('Reorder level').fill('20')
+    await page.getByRole('button', { name: 'Set' }).click()
+
+    await nav('Overview')
+    // The frame (from the approved prototype): store and user in the top bar, grouped sidebar.
+    const top = page.getByRole('banner')
+    await expect(top).toContainText('Main Store')
+    await expect(top).toContainText('Demo Owner')
+    await expect(top).toContainText('Owner')
+    for (const group of ['MAIN', 'CATALOGUE', 'RELATIONSHIPS', 'INSIGHTS', 'SETTINGS']) {
+      await expect(page.getByRole('navigation', { name: 'Main' })).toContainText(group)
+    }
+    await expect(page.getByText('Returns')).toBeVisible() // arrives in a later release
+    await expect(page.locator('[aria-disabled="true"]')).toContainText('Soon')
+
+    // Today's two sales, with an honest message when there is no earlier day to compare with.
+    const revenue = page.getByText('TOTAL REVENUE', { exact: true }).locator('xpath=..')
+    await expect(revenue).toContainText('₹2,598.00')
+    await expect(revenue).toContainText('No sales yesterday to compare with')
+    await expect(page.getByText('TOTAL ORDERS', { exact: true }).locator('xpath=..')).toContainText('2')
+    await expect(page.getByText('ACTIVE PRODUCTS', { exact: true }).locator('xpath=..')).toContainText('1')
+    await expect(page.getByText('LOW STOCK ITEMS', { exact: true }).locator('xpath=..')).toContainText('1')
+    await expect(page.getByRole('figure', { name: 'Sales performance' })).toBeVisible()
+
+    // Inventory alerts list the variant that has reached its reorder level.
+    await expect(page.getByRole('row', { name: /Classic Cotton Shirt.*8 left/ })).toBeVisible()
+
+    // The period selector re-reads the numbers (both sales were made today).
+    await page.getByLabel('Period').selectOption('month')
+    await expect(page.getByText('TOTAL REVENUE', { exact: true }).locator('xpath=..')).toContainText('₹2,598.00')
+    await page.getByLabel('Period').selectOption('today')
+
+    // Quick actions go where they say.
+    await page.getByRole('link', { name: /New Sale/ }).click()
+    await expect(page.getByRole('heading', { name: 'Point of Sale' })).toBeVisible()
+    await nav('Overview')
+    await page.getByRole('button', { name: 'Start a new sale →' }).click()
+    await expect(page.getByRole('heading', { name: 'Point of Sale' })).toBeVisible()
   })
 
   test('reports: sales totals, GST by rate, and stock agree with what was sold', async () => {
@@ -228,6 +266,120 @@ test.describe.serial('first day in the shop', () => {
     await search.press('Enter')
     await expect(page.getByText('Total (incl. GST)')).toBeVisible()
     await page.getByRole('button', { name: 'Clear' }).click()
+  })
+
+  test('sign-in page: layout, validation, wrong password, show/hide and forgot password', async () => {
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.waitForURL('**/login')
+    // The split layout from the approved prototype.
+    await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
+    await expect(page.getByText('Sign in to your Wearstack workspace.')).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Your store.')
+    for (const feature of ['Fast billing', 'Smart inventory', 'Business insights']) {
+      await expect(page.getByText(feature)).toBeVisible()
+    }
+    await expect(page.getByText('BUILT FOR THE WAY YOU RETAIL.')).toBeVisible()
+    await expect(page.getByLabel('Remember me')).not.toBeChecked() // the safe default
+
+    // Empty and malformed input is explained before anything is sent.
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByText('Enter a valid email address')).toBeVisible()
+    await expect(page.getByText('Enter your password')).toBeVisible()
+
+    // A wrong password gives one generic message (it never says which half was wrong).
+    await page.getByLabel('Email address').fill('demo@example.com')
+    await page.getByLabel('Password').fill('not-the-password')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('alert')).toHaveText('Invalid email or password')
+
+    // Show / Hide toggles the field type.
+    const password = page.getByLabel('Password')
+    await expect(password).toHaveAttribute('type', 'password')
+    await page.getByRole('button', { name: 'Show' }).click()
+    await expect(password).toHaveAttribute('type', 'text')
+    await page.getByRole('button', { name: 'Hide' }).click()
+    await expect(password).toHaveAttribute('type', 'password')
+
+    // There is no email reset yet, and the screen says so instead of pretending.
+    await page.getByRole('button', { name: 'Forgot password?' }).click()
+    await expect(page.getByRole('alert')).toContainText('Ask your store owner or administrator')
+    // A production build never offers a way around signing in.
+    const demo = page.getByRole('button', { name: 'Explore demo dashboard' })
+    await expect(demo).toHaveCount(process.env.E2E_PROD ? 0 : 1)
+  })
+
+  test('remember me: unticked ends with the browser session, ticked lasts for days', async () => {
+    const refreshCookie = async () =>
+      (await page.context().cookies()).find((c) => c.name === 'refresh_token')
+
+    await page.getByLabel('Email address').fill('demo@example.com')
+    await page.getByLabel('Password').fill('demo-password-1')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+    expect((await refreshCookie())?.expires).toBe(-1) // a session cookie
+
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.waitForURL('**/login')
+    await page.getByLabel('Email address').fill('demo@example.com')
+    await page.getByLabel('Password').fill('demo-password-1')
+    await page.getByLabel('Remember me').check()
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+    const days = ((await refreshCookie())!.expires - Date.now() / 1000) / 86400
+    expect(days).toBeGreaterThan(13)
+    expect(days).toBeLessThanOrEqual(14)
+  })
+
+  test('a cashier created by the owner can sign in and sees only what the role allows', async () => {
+    await nav('Users')
+    await page.getByLabel('Full name').fill('Demo Cashier')
+    await page.getByLabel('Email').fill('cashier@example.com')
+    await page.getByLabel('Temporary password').fill('cashier-password-1')
+    await page.getByLabel('Role').selectOption({ label: 'Cashier' })
+    await page.getByLabel('Main Store').check()
+    await page.getByRole('button', { name: 'Create user' }).click()
+    await expect(page.getByRole('cell', { name: 'cashier@example.com' })).toBeVisible()
+
+    // The cashier "forgot" the temporary password: the owner sets a new one.
+    await page.getByRole('button', { name: 'Reset password for Demo Cashier' }).click()
+    await page.getByLabel('New password for Demo Cashier').fill('cashier-password-2')
+    await page.getByRole('button', { name: 'Set password', exact: true }).click()
+    await expect(page.getByText('Password changed')).toBeVisible()
+
+    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.waitForURL('**/login')
+    await page.getByLabel('Email address').fill('cashier@example.com')
+    await page.getByLabel('Password').fill('cashier-password-1') // the old one no longer works
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('alert')).toHaveText('Invalid email or password')
+    await page.getByLabel('Password').fill('cashier-password-2')
+    await page.getByRole('button', { name: 'Sign in' }).click()
+    await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
+
+    // The cashier works in a store even though the role cannot browse the Stores screen.
+    await expect(page.getByRole('banner')).toContainText('Main Store')
+    await expect(page.getByRole('banner')).toContainText('Cashier')
+    const menu = page.getByRole('navigation', { name: 'Main' })
+    for (const hidden of ['Reports', 'Stores', 'Users', 'Roles', 'Purchases']) {
+      await expect(menu.getByRole('link', { name: hidden, exact: true })).toHaveCount(0)
+    }
+    await expect(menu.getByRole('link', { name: 'Point of Sale', exact: true })).toBeVisible()
+    // No revenue figures for a cashier, but the shelf alerts and the sale button are there.
+    await expect(page.getByText('TOTAL REVENUE', { exact: true })).toHaveCount(0)
+    await expect(page.getByRole('row', { name: /Classic Cotton Shirt.*8 left/ })).toBeVisible()
+    await page.goto('/reports')
+    await expect(page.getByText("You don't have access to this page.")).toBeVisible()
+  })
+
+  test('the cashier completes a sale at the till', async () => {
+    await nav('Point of Sale')
+    const search = page.getByPlaceholder('Scan barcode or search name / SKU…')
+    await search.fill(barcode)
+    await search.press('Enter')
+    await expect(page.getByText('Total (incl. GST)')).toBeVisible()
+    await page.getByRole('button', { name: '+ CASH' }).click()
+    await page.getByRole('button', { name: 'Complete sale' }).click()
+    await expect(page.getByText(/Sale complete · MAIN\/\d\d-\d\d\/00003/)).toBeVisible()
   })
 
   test('the session survives a reload', async () => {

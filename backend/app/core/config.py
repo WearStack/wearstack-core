@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-change-me-not-for-production-use"
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 15
-    refresh_token_days: int = 14
+    refresh_token_days: int = 14  # "remember me" sessions
+    session_token_hours: int = 12  # sessions that were not remembered
     cookie_secure: bool = False
     # Where the refresh cookie is sent. If a proxy serves the API under /api, set /api/auth.
     cookie_path: str = "/auth"

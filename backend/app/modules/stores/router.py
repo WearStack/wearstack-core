@@ -63,7 +63,8 @@ def _out(db: Session, ctx: AuthContext, store: Store) -> StoreOut:
 def list_stores(
     ctx: AuthContext = Depends(require_permission("store:read")), db: Session = Depends(get_db)
 ) -> list[StoreOut]:
-    stmt = select(Store).where(Store.id.in_(ctx.store_ids)).order_by(Store.code)
+    # Oldest first: the business's first store is the natural default one to work in.
+    stmt = select(Store).where(Store.id.in_(ctx.store_ids)).order_by(Store.created_at, Store.code)
     return [_out(db, ctx, store) for store in db.scalars(stmt)]
 
 

@@ -91,9 +91,12 @@ def _subtitle(db: Session, ctx: AuthContext, name: Name, p: Params) -> str:
 
 @router.get("/overview")
 def overview(
-    ctx: AuthContext = Depends(require_permission("report:read")), db: Session = Depends(get_db)
+    range: svc.Range = "today",  # noqa: A002 - the query parameter is called "range"
+    store_id: uuid.UUID | None = None,
+    ctx: AuthContext = Depends(require_permission("report:read")),
+    db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    return svc.overview(db, ctx.business_id, set(ctx.store_ids))
+    return svc.overview(db, ctx.business_id, _stores(ctx, store_id), range)
 
 
 @router.get("/{name}.csv")

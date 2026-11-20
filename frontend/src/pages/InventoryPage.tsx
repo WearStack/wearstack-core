@@ -11,7 +11,8 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { api } from '@/lib/api'
-import type { Movement, StockRow, Store } from '@/lib/types'
+import { useActiveStore } from '@/lib/useActiveStore'
+import type { Movement, StockRow } from '@/lib/types'
 import { useAuthStore } from '@/stores/auth'
 
 function RowPanel({
@@ -160,9 +161,7 @@ function RowPanel({
 
 export function InventoryPage() {
   const canAdjust = useAuthStore((s) => s.can('inventory:adjust'))
-  const stores = useQuery({ queryKey: ['stores'], queryFn: () => api<Store[]>('/stores') })
-  const [chosen, setChosen] = useState('')
-  const storeId = chosen || stores.data?.[0]?.id || ''
+  const { storeId } = useActiveStore()
   const [q, setQ] = useState('')
   const [lowOnly, setLowOnly] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
@@ -183,17 +182,6 @@ export function InventoryPage() {
       </div>
       <div className="rounded-xl border border-ws-line bg-white p-4">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <select
-            className="border-input h-9 rounded-md border bg-transparent px-2 text-sm"
-            value={storeId}
-            onChange={(e) => setChosen(e.target.value)}
-          >
-            {stores.data?.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
           <Input
             className="max-w-xs"
             placeholder="Search name, SKU or barcode…"

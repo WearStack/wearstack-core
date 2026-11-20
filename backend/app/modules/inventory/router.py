@@ -71,6 +71,7 @@ def list_stock(
     store_id: uuid.UUID,
     q: str | None = None,
     low_stock: bool = False,
+    sort: Literal["name", "stock"] = "name",
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     ctx: AuthContext = Depends(require_permission("inventory:read")),
@@ -104,11 +105,12 @@ def list_stock(
         )
     if low_stock:  # "low" means a reorder level is set and stock has reached it
         stmt = stmt.where(reorder > 0, qty <= reorder)
-    rows = db.execute(
-        stmt.order_by(Product.name, ProductVariant.size, ProductVariant.colour)
-        .limit(limit)
-        .offset(offset)
-    ).all()
+    order = (
+        [qty, Product.name, ProductVariant.size, ProductVariant.colour]
+        if sort == "stock"
+        else [Product.name, ProductVariant.size, ProductVariant.colour]
+    )
+    rows = db.execute(stmt.order_by(*order).limit(limit).offset(offset)).all()
     return [
         StockRow(
             variant_id=v.id,

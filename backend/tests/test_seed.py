@@ -49,10 +49,10 @@ def test_seed_builds_a_consistent_demo_shop_and_refuses_to_run_twice(
     )  # numbers rise with the clock
 
     # The seeded accounts work and the reports see the data.
-    owner = login(client, "owner@example.com", PASSWORD)
+    owner = login(client, "owner@yopmail.com", PASSWORD)
     report = client.get("/reports/sales", headers=owner, params={"group": "month"}).json()
     assert report["totals"]["orders"] > 0
-    cashier = login(client, "cashier@example.com", PASSWORD)
+    cashier = login(client, "cashier@yopmail.com", PASSWORD)
     assert client.get("/reports/sales", headers=cashier).status_code == 403
 
     assert main() == 1  # a business exists now: refuses

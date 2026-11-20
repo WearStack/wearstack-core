@@ -422,9 +422,85 @@ def purchases_summary(
     )
 
 
-def overview(db: Session, business_id: uuid.UUID, store_ids: set[uuid.UUID]) -> dict[str, Any]:
+Range = Literal["today", "week", "month"]
+
+
+def period_bounds(rng: Range, today: date) -> tuple[date, date, date, date]:
+    """(start, end, previous_start, previous_end). The previous period covers the same number of
+    elapsed days, so "this week so far" is compared with "last week over the same days"."""
+    if rng == "today":
+        start = today
+        prev_start = today - timedelta(days=1)
+    elif rng == "week":
+        start = today - timedelta(days=today.weekday())  # Monday
+        prev_start = start - timedelta(days=7)
+    else:
+        start = today.replace(day=1)
+        prev_start = (start - timedelta(days=1)).replace(day=1)
+    elapsed = timedelta(days=(today - start).days)
+    prev_end = min(prev_start + elapsed, start - timedelta(days=1))
+    return start, today, prev_start, prev_end
+
+
+def _totals(
+    db: Session, business_id: uuid.UUID, store_ids: set[uuid.UUID], start: date, end: date
+) -> tuple[int, Decimal]:
+    lo, hi = bounds(start, end)
+    orders, revenue = db.execute(
+        select(func.count(Sale.id), _sum(Sale.grand_total)).where(
+            Sale.business_id == business_id, Sale.store_id.in_(store_ids),
+            Sale.sold_at >= lo, Sale.sold_at < hi,
+        )
+    ).one()  # fmt: skip
+    return int(orders), Decimal(revenue)
+
+
+def _growth(current: Decimal | int, previous: Decimal | int) -> str | None:
+    """Percent change versus the previous period; None when there is nothing to compare with."""
+    if not previous:
+        return None
+    return f"{(Decimal(current) - Decimal(previous)) / Decimal(previous) * 100:.1f}"
+
+
+def _hour_label(h: int) -> str:
+    return f"{h % 12 or 12} {'AM' if h < 12 else 'PM'}"
+
+
+def _hourly(
+    db: Session, business_id: uuid.UUID, store_ids: set[uuid.UUID], day: date
+) -> list[dict[str, Any]]:
+    lo, hi = bounds(day, day)
+    hour = func.extract("hour", func.timezone("Asia/Kolkata", Sale.sold_at))
+    found = {
+        int(h): Decimal(t)
+        for h, t in db.execute(
+            select(hour, _sum(Sale.grand_total))
+            .where(Sale.business_id == business_id, Sale.store_id.in_(store_ids),
+                   Sale.sold_at >= lo, Sale.sold_at < hi)
+            .group_by(hour)
+        )
+    }  # fmt: skip
+    # Show the trading day (9 AM to 9 PM), widened if something sold outside it.
+    first = min([9, *found]) if found else 9
+    last = max([21, *found]) if found else 21
+    return [
+        {"label": _hour_label(h), "total": money(found.get(h, 0))} for h in range(first, last + 1)
+    ]
+
+
+def overview(
+    db: Session, business_id: uuid.UUID, store_ids: set[uuid.UUID], rng: Range = "today"
+) -> dict[str, Any]:
     today = datetime.now(IST).date()
-    s = sales_summary(db, business_id, store_ids, today, today, "day")
+    start, end, prev_start, prev_end = period_bounds(rng, today)
+    orders, revenue = _totals(db, business_id, store_ids, start, end)
+    prev_orders, prev_revenue = _totals(db, business_id, store_ids, prev_start, prev_end)
+    if rng == "today":
+        kind, points = "hour", _hourly(db, business_id, store_ids, today)
+    else:
+        daily = sales_summary(db, business_id, store_ids, start, end, "day")
+        kind = "day"
+        points = [{"label": r["period"], "total": r["total"]} for r in daily.rows]
     low = db.scalar(
         select(func.count()).select_from(Inventory).where(
             Inventory.business_id == business_id, Inventory.store_id.in_(store_ids),
@@ -433,11 +509,18 @@ def overview(db: Session, business_id: uuid.UUID, store_ids: set[uuid.UUID]) -> 
     )  # fmt: skip
     active = db.scalar(select(func.count()).select_from(Product).where(
         Product.business_id == business_id, Product.is_active.is_(True)))  # fmt: skip
-    totals = s.totals or {}
     return {
         "date": today.isoformat(),
-        "orders": totals.get("orders", 0),
-        "revenue": totals.get("total", money(0)),
+        "range": rng,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "orders": orders,
+        "revenue": money(revenue),
+        "orders_previous": prev_orders,
+        "revenue_previous": money(prev_revenue),
+        "orders_growth": _growth(orders, prev_orders),
+        "revenue_growth": _growth(revenue, prev_revenue),
         "low_stock_items": low or 0,
         "active_products": active or 0,
+        "series": {"kind": kind, "points": points},
     }

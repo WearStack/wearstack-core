@@ -67,17 +67,17 @@ def seed(db: Session) -> dict[str, str]:
     roles = create_default_roles(db, biz.id)
     stores = [
         Store(business_id=biz.id, code="MAIN", name="Main Store", state_code="27",
-              gstin="27AAPFU0939F1ZV", address="MG Road, Pune"),
+              gstin="27AAPFU0939F1ZV", address="MG Road, Pune", created_at=now - timedelta(days=90)),
         Store(business_id=biz.id, code="BR1", name="Branch Store", state_code="27",
-              gstin="27AAPFU0939F1ZV", address="FC Road, Pune"),
+              gstin="27AAPFU0939F1ZV", address="FC Road, Pune", created_at=now - timedelta(days=45)),
     ]  # fmt: skip
     db.add_all(stores)
     db.flush()
     users: dict[str, User] = {}
     for role, email, name in (
-        ("Owner", "owner@example.com", "Demo Owner"),
-        ("Manager", "manager@example.com", "Demo Manager"),
-        ("Cashier", "cashier@example.com", "Demo Cashier"),
+        ("Owner", "owner@yopmail.com", "Demo Owner"),
+        ("Manager", "manager@yopmail.com", "Demo Manager"),
+        ("Cashier", "cashier@yopmail.com", "Demo Cashier"),
     ):
         u = User(business_id=biz.id, role_id=roles[role].id, email=email, full_name=name,
                  password_hash=hash_password(PASSWORD))  # fmt: skip
@@ -226,7 +226,7 @@ def main() -> int:
     print(
         f"Seeded {result['sales']} sales, {result['products']} products ({result['variants']} variants)."
     )
-    print(f"Log in as owner@example.com, manager@example.com or cashier@example.com / {PASSWORD}")
+    print(f"Log in as owner@yopmail.com, manager@yopmail.com or cashier@yopmail.com / {PASSWORD}")
     return 0
 
 
