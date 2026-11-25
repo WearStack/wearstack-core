@@ -25,6 +25,8 @@ interface AuthState {
   /** Called when the connection returns: turns an offline session into a real one. */
   resume: () => Promise<void>
   login: (email: string, password: string, remember?: boolean) => Promise<void>
+  /** Replaces the person's own password (the only thing allowed while it is temporary). */
+  changePassword: (current: string, next: string) => Promise<void>
   logout: () => Promise<void>
   can: (permission: string) => boolean
 }
@@ -88,6 +90,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email,
       password,
       remember,
+    })
+    setAccessToken(access_token)
+    const me = await api<Me>('/auth/me')
+    await setMeta(ME_KEY, me)
+    set({ me, status: 'authed', offlineSession: false })
+  },
+
+  changePassword: async (current, next) => {
+    // The server ends this person's other sessions and continues this one on a fresh token.
+    const { access_token } = await api<{ access_token: string }>('/auth/change-password', 'POST', {
+      current_password: current,
+      new_password: next,
     })
     setAccessToken(access_token)
     const me = await api<Me>('/auth/me')

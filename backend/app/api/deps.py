@@ -31,10 +31,7 @@ class AuthContext:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "No access to this store")
 
 
-def get_auth(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
-    db: Session = Depends(get_db),
-) -> AuthContext:
+def _authenticate(creds: HTTPAuthorizationCredentials | None, db: Session) -> AuthContext:
     unauthorized = HTTPException(
         status.HTTP_401_UNAUTHORIZED, "Not authenticated", headers={"WWW-Authenticate": "Bearer"}
     )
@@ -47,6 +44,11 @@ def get_auth(
         raise unauthorized from None
     if user is None or not user.is_active or str(user.business_id) != claims.get("biz"):
         raise unauthorized
+    # "Sign out everywhere" and password changes end sessions that are already open.
+    if user.tokens_valid_after is not None and int(claims.get("iat", 0)) < int(
+        user.tokens_valid_after.timestamp()
+    ):
+        raise unauthorized
     role = db.get(Role, user.role_id)
     assert role is not None
     return AuthContext(
@@ -55,6 +57,26 @@ def get_auth(
         permissions=permission_codes(db, role.id),
         store_ids=accessible_store_ids(db, user, role),
     )
+
+
+def get_auth_pending_ok(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> AuthContext:
+    """For the few endpoints a person may use before they have replaced a temporary password."""
+    return _authenticate(creds, db)
+
+
+def get_auth(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> AuthContext:
+    ctx = _authenticate(creds, db)
+    if ctx.user.must_change_password:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Change your temporary password before continuing"
+        )
+    return ctx
 
 
 def require_permission(code: str) -> Callable[[AuthContext], AuthContext]:

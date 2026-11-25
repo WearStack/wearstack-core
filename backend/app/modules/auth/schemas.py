@@ -24,6 +24,13 @@ class MeResponse(BaseModel):
     role: str
     permissions: list[str]
     store_ids: list[uuid.UUID]
+    # True until the person has replaced a temporary password set by an administrator.
+    must_change_password: bool = False
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
 
 
 class MyStore(BaseModel):

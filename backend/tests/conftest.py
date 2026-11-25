@@ -77,7 +77,17 @@ def setup_ids(client: TestClient) -> dict[str, str]:
     return res.json()
 
 
+def skip_forced_password_change(email: str) -> None:
+    """Most tests are not about the first-login password change, so they skip it. The tests that
+    are (test_admin.py) use the real flow."""
+    with engine.begin() as conn:
+        conn.exec_driver_sql(
+            "UPDATE users SET must_change_password = false WHERE email = %s", (email.lower(),)
+        )
+
+
 def login(client: TestClient, email: str, password: str) -> dict[str, str]:
+    skip_forced_password_change(email)
     res = client.post("/auth/login", json={"email": email, "password": password})
     assert res.status_code == 200, res.text
     return {"Authorization": f"Bearer {res.json()['access_token']}"}

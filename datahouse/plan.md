@@ -113,7 +113,7 @@ D1, D4, D5 resolved (recommended options). Remaining open: D2, D3, D6. Start Pha
 
 | Item | Decision | Notes |
 |------|----------|-------|
-| **Admin page for user management** | **No self-signup, ever.** Accounts are created only by an administrator, from one dedicated admin page. | Today the Owner adds users on the *Users* page (create, deactivate, reset password, role and store access via the API). The parked work is a proper admin area: invite/create flow, role and store assignment in the UI, password reset, deactivate/reactivate, session sign-out, and an activity view from the audit log. Keep signup endpoints out of the product. |
+| **Admin page for user management** | **BUILT 2026-11-26.** No self-signup, ever: accounts are created only by an administrator on the Admin page. | Users tab (add, edit name/role/stores, reset password, sign out everywhere, deactivate; last sign-in shown), Activity tab (who did what, by name, filterable), generated temporary passwords shown once and enforced to be replaced at first sign-in (server-side). Still to do later: invitation by email. |
 | Password reset by email | Not built | The login screen tells people to ask their administrator. Revisit with the admin page. |
 | Login rate limiting | Not built | Needed before the app is exposed to the internet. |
 

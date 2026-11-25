@@ -10,7 +10,7 @@ import { expect, test, type Browser, type BrowserContext, type Page } from '@pla
 const PROD = !!process.env.E2E_PROD
 const API = process.env.API_URL ?? (PROD ? 'http://localhost:8081/api' : 'http://localhost:8010')
 const OWNER = { email: 'demo@example.com', password: 'demo-password-1' }
-const CASHIER = { email: 'cashier@example.com', password: 'cashier-password-2' }
+const CASHIER = { email: 'cashier@example.com', password: 'cashier-final-pass-3' }
 
 async function token(browser: Browser, who: { email: string; password: string }): Promise<string> {
   const ctx = await browser.newContext()

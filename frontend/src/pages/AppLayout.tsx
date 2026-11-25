@@ -49,7 +49,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     title: 'SETTINGS',
     items: [
       { to: '/stores', label: 'Stores', glyph: '⌂', permission: 'store:read' },
-      { to: '/users', label: 'Users', glyph: '☺', permission: 'user:read' },
+      { to: '/admin', label: 'Admin', glyph: '☺', permission: 'user:read' },
       { to: '/roles', label: 'Roles', glyph: '⚿', permission: 'role:read' },
     ],
   },

@@ -1,8 +1,9 @@
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,7 +11,8 @@ from app.api.deps import AuthContext, require_permission
 from app.core.permissions import OWNER_ROLE
 from app.core.security import hash_password
 from app.db.session import get_db
-from app.models import RefreshToken, Role, Store, User, UserStoreAccess
+from app.models import Role, Store, User, UserStoreAccess
+from app.modules.auth.service import end_all_sessions, password_problem
 from app.services.audit import record_audit
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -39,6 +41,8 @@ class UserOut(BaseModel):
     role_id: uuid.UUID
     is_active: bool
     store_ids: list[uuid.UUID]
+    last_login_at: datetime | None = None
+    must_change_password: bool = False
 
 
 def _out(db: Session, u: User) -> UserOut:
@@ -50,7 +54,15 @@ def _out(db: Session, u: User) -> UserOut:
         role_id=u.role_id,
         is_active=u.is_active,
         store_ids=sorted(stores),
+        last_login_at=u.last_login_at,
+        must_change_password=u.must_change_password,
     )
+
+
+def _check_password(password: str, email: str) -> None:
+    problem = password_problem(password, email)
+    if problem:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
 
 
 def _is_owner_role(role: Role) -> bool:
@@ -112,12 +124,14 @@ def create_user(
 ) -> UserOut:
     _role_for(db, ctx, body.role_id)
     _check_stores(db, ctx, body.store_ids)
+    _check_password(body.password, body.email)
     user = User(
         business_id=ctx.business_id,
         role_id=body.role_id,
         email=body.email.lower(),
         full_name=body.full_name,
         password_hash=hash_password(body.password),
+        must_change_password=True,  # the administrator's password is temporary
     )
     db.add(user)
     try:
@@ -169,16 +183,14 @@ def update_user(
         _check_stores(db, ctx, body.store_ids)
         _set_stores(db, user.id, body.store_ids)
     if body.password is not None:
+        _check_password(body.password, user.email)
         user.password_hash = hash_password(body.password)
+        user.must_change_password = True  # set by an administrator, so temporary
     for field in ("full_name", "role_id", "is_active"):
         if field in changes and changes[field] is not None:
             setattr(user, field, changes[field])
     if body.password is not None or deactivating:
-        db.execute(
-            update(RefreshToken)
-            .where(RefreshToken.user_id == user.id, RefreshToken.revoked_at.is_(None))
-            .values(revoked_at=func.now())
-        )
+        end_all_sessions(db, user)  # takes effect now, including sessions already open
     db.flush()
     after = _out(db, user).model_dump(mode="json")
     if body.password is not None:
@@ -195,3 +207,31 @@ def update_user(
     )
     db.commit()
     return _out(db, user)
+
+
+@router.post("/{user_id}/sign-out", status_code=status.HTTP_204_NO_CONTENT)
+def sign_out_everywhere(
+    user_id: uuid.UUID,
+    ctx: AuthContext = Depends(require_permission("user:write")),
+    db: Session = Depends(get_db),
+) -> None:
+    """Ends every session of this user, now: for a lost phone, a shared PC left signed in, or
+    someone who has left. They can sign in again unless they are also deactivated."""
+    user = db.get(User, user_id)
+    if user is None or user.business_id != ctx.business_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    role = db.get(Role, user.role_id)
+    assert role is not None
+    if _is_owner_role(role) and not _is_owner_role(ctx.role):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only an Owner can modify an Owner")
+    end_all_sessions(db, user)
+    record_audit(
+        db,
+        business_id=ctx.business_id,
+        user_id=ctx.user.id,
+        action="user.signed_out",
+        entity_type="user",
+        entity_id=user.id,
+        after={"email": user.email},
+    )
+    db.commit()

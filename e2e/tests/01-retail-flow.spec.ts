@@ -269,7 +269,7 @@ test.describe.serial('first day in the shop', () => {
   })
 
   test('sign-in page: layout, validation, wrong password, show/hide and forgot password', async () => {
-    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
     await page.waitForURL('**/login')
     // The split layout from the approved prototype.
     await expect(page.getByRole('heading', { name: 'Welcome back' })).toBeVisible()
@@ -318,7 +318,7 @@ test.describe.serial('first day in the shop', () => {
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
     expect((await refreshCookie())?.expires).toBe(-1) // a session cookie
 
-    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
     await page.waitForURL('**/login')
     await page.getByLabel('Email address').fill('demo@example.com')
     await page.getByLabel('Password').fill('demo-password-1')
@@ -331,22 +331,26 @@ test.describe.serial('first day in the shop', () => {
   })
 
   test('a cashier created by the owner can sign in and sees only what the role allows', async () => {
-    await nav('Users')
+    await nav('Admin')
     await page.getByLabel('Full name').fill('Demo Cashier')
     await page.getByLabel('Email').fill('cashier@example.com')
     await page.getByLabel('Temporary password').fill('cashier-password-1')
     await page.getByLabel('Role').selectOption({ label: 'Cashier' })
     await page.getByLabel('Main Store').check()
     await page.getByRole('button', { name: 'Create user' }).click()
-    await expect(page.getByRole('cell', { name: 'cashier@example.com' })).toBeVisible()
+    await expect(page.getByRole('cell', { name: /cashier@example\.com/ })).toBeVisible()
+    // Not signed in yet, and still on a temporary password.
+    const row = page.getByRole('row', { name: /cashier@example\.com/ })
+    await expect(row).toContainText('Never')
+    await expect(row).toContainText('Must choose a password')
 
     // The cashier "forgot" the temporary password: the owner sets a new one.
     await page.getByRole('button', { name: 'Reset password for Demo Cashier' }).click()
     await page.getByLabel('New password for Demo Cashier').fill('cashier-password-2')
     await page.getByRole('button', { name: 'Set password', exact: true }).click()
-    await expect(page.getByText('Password changed')).toBeVisible()
+    await expect(page.getByText('Password changed for Demo Cashier')).toBeVisible()
 
-    await page.getByRole('button', { name: 'Sign out' }).click()
+    await page.getByRole('button', { name: 'Sign out', exact: true }).click()
     await page.waitForURL('**/login')
     await page.getByLabel('Email address').fill('cashier@example.com')
     await page.getByLabel('Password').fill('cashier-password-1') // the old one no longer works
@@ -354,13 +358,33 @@ test.describe.serial('first day in the shop', () => {
     await expect(page.getByRole('alert')).toHaveText('Invalid email or password')
     await page.getByLabel('Password').fill('cashier-password-2')
     await page.getByRole('button', { name: 'Sign in' }).click()
+
+    // A temporary password must be replaced before anything else can be done.
+    await expect(page.getByRole('heading', { name: 'Choose your own password' })).toBeVisible()
+    await page.goto('/pos') // trying to skip ahead leads straight back
+    await expect(page.getByRole('heading', { name: 'Choose your own password' })).toBeVisible()
+    const submit = page.getByRole('button', { name: 'Set my password' })
+    await page.getByLabel('Temporary password').fill('cashier-password-2')
+    await page.getByLabel('New password', { exact: true }).fill('short')
+    await submit.click()
+    await expect(page.getByText('Use at least 10 characters')).toBeVisible()
+    await page.getByLabel('New password', { exact: true }).fill('cashier-password-2')
+    await page.getByLabel('Confirm new password').fill('cashier-password-2')
+    await submit.click()
+    await expect(page.getByText('Choose a password different from the temporary one')).toBeVisible()
+    await page.getByLabel('New password', { exact: true }).fill('cashier-final-pass-3')
+    await page.getByLabel('Confirm new password').fill('cashier-final-pass-9')
+    await submit.click()
+    await expect(page.getByText('The passwords do not match')).toBeVisible()
+    await page.getByLabel('Confirm new password').fill('cashier-final-pass-3')
+    await submit.click()
     await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible()
 
     // The cashier works in a store even though the role cannot browse the Stores screen.
     await expect(page.getByRole('banner')).toContainText('Main Store')
     await expect(page.getByRole('banner')).toContainText('Cashier')
     const menu = page.getByRole('navigation', { name: 'Main' })
-    for (const hidden of ['Reports', 'Stores', 'Users', 'Roles', 'Purchases']) {
+    for (const hidden of ['Reports', 'Stores', 'Admin', 'Roles', 'Purchases']) {
       await expect(menu.getByRole('link', { name: hidden, exact: true })).toHaveCount(0)
     }
     await expect(menu.getByRole('link', { name: 'Point of Sale', exact: true })).toBeVisible()

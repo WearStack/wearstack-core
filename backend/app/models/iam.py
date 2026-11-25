@@ -47,6 +47,15 @@ class User(UUIDPrimaryKey, Timestamps, Base):
     full_name: Mapped[str] = mapped_column(String(200))
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Passwords set by an administrator are temporary: the person must choose their own before
+    # doing anything else. Enforced by the server, not just the screen.
+    must_change_password: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Access tokens issued before this moment are refused: that is how "sign out everywhere" and a
+    # password change end sessions that are already open, without waiting for the token to expire.
+    tokens_valid_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class UserStoreAccess(Base):

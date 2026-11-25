@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { AdminPage } from '@/features/admin/AdminPage'
+import { ChangePasswordPage } from '@/features/auth/ChangePasswordPage'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { RequireAuth, RequirePermission } from '@/features/auth/RequireAuth'
 import { SetupPage } from '@/features/auth/SetupPage'
@@ -14,7 +16,6 @@ import { InventoryPage } from '@/pages/InventoryPage'
 import { ProductsPage } from '@/pages/ProductsPage'
 import { RolesPage } from '@/pages/RolesPage'
 import { StoresPage } from '@/pages/StoresPage'
-import { UsersPage } from '@/pages/UsersPage'
 import { useAuthStore } from '@/stores/auth'
 
 export default function App() {
@@ -27,6 +28,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/setup" element={<SetupPage />} />
+      <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<OverviewPage />} />
@@ -95,13 +97,14 @@ export default function App() {
             }
           />
           <Route
-            path="users"
+            path="admin"
             element={
               <RequirePermission permission="user:read">
-                <UsersPage />
+                <AdminPage />
               </RequirePermission>
             }
           />
+          <Route path="users" element={<Navigate to="/admin" replace />} />
           <Route
             path="roles"
             element={
@@ -112,6 +115,9 @@ export default function App() {
           />
         </Route>
       </Route>
+      {/* Anything else (including addresses that never existed, like /signup) goes home, which
+          sends someone who is not signed in to the sign-in page. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

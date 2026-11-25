@@ -2,12 +2,19 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.deps import AuthContext, get_auth
+from app.api.deps import AuthContext, get_auth, get_auth_pending_ok
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models import Store
 from app.modules.auth import service
-from app.modules.auth.schemas import LoginRequest, MeResponse, MyStore, TokenResponse
+from app.modules.auth.schemas import (
+    ChangePasswordRequest,
+    LoginRequest,
+    MeResponse,
+    MyStore,
+    TokenResponse,
+)
+from app.services.audit import record_audit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 COOKIE = "refresh_token"
@@ -66,7 +73,7 @@ def logout(
 
 
 @router.get("/me", response_model=MeResponse)
-def me(ctx: AuthContext = Depends(get_auth)) -> MeResponse:
+def me(ctx: AuthContext = Depends(get_auth_pending_ok)) -> MeResponse:
     return MeResponse(
         id=ctx.user.id,
         business_id=ctx.business_id,
@@ -75,6 +82,7 @@ def me(ctx: AuthContext = Depends(get_auth)) -> MeResponse:
         role=ctx.role.name,
         permissions=sorted(ctx.permissions),
         store_ids=sorted(ctx.store_ids),
+        must_change_password=ctx.user.must_change_password,
     )
 
 
@@ -84,3 +92,44 @@ def my_stores(ctx: AuthContext = Depends(get_auth), db: Session = Depends(get_db
     tell the POS which store they are selling from."""
     stmt = select(Store).where(Store.id.in_(ctx.store_ids)).order_by(Store.created_at, Store.code)
     return list(db.scalars(stmt))
+
+
+@router.post("/change-password", response_model=TokenResponse)
+def change_password(
+    body: ChangePasswordRequest,
+    response: Response,
+    ctx: AuthContext = Depends(get_auth_pending_ok),
+    db: Session = Depends(get_db),
+    refresh_token: str | None = Cookie(default=None),
+) -> TokenResponse:
+    """Lets a person replace their own password (and is the only thing a person with a temporary
+    password may do). Ends their other sessions and continues this one."""
+    problem = service.password_problem(body.new_password, ctx.user.email)
+    if problem:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Choose a password different from the current one",
+        )
+    persistent = service.is_persistent(db, refresh_token)
+    try:
+        access, raw = service.change_own_password(
+            db, ctx.user, body.current_password, body.new_password, persistent
+        )
+    except service.AuthError:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "Your current password is not correct"
+        ) from None
+    record_audit(
+        db,
+        business_id=ctx.business_id,
+        user_id=ctx.user.id,
+        action="user.password_changed",
+        entity_type="user",
+        entity_id=ctx.user.id,
+        after={"self_service": True},
+    )
+    db.commit()
+    _set_cookie(response, raw, persistent)
+    return TokenResponse(access_token=access)

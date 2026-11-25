@@ -63,6 +63,26 @@ the next invoice continuing the sequence with no gap or duplicate.
 
 Migrations run automatically when the backend starts. Roll back by restoring the backup you took.
 
+## People and access
+
+There is **no self-signup**. Accounts are created only by an administrator, on the **Admin** page
+(Owners have it by default; any role with the *user:write* permission can use it).
+
+- **Add a person:** name, email, role, stores and a temporary password (use *Generate*). The password
+  is shown **once**; share it securely. The person must choose their own password the first time
+  they sign in, and the server refuses everything else until they do.
+- **Reset password:** sets a new temporary password, signs the person out of every device at once,
+  and again requires them to choose their own at next sign-in.
+- **Sign out everywhere:** ends all of a person's sessions immediately, including ones already open
+  (use it for a lost phone, a shared PC left signed in, or someone who has left). They can sign in
+  again unless they are also deactivated. Deactivating also ends sessions immediately.
+- **Activity:** a readable log of who did what (people and access, roles, stores, sales, stock,
+  offline sync), by name.
+- **Safeguards:** only an Owner can give or change the Owner role, the business always keeps an
+  active Owner, and nobody can deactivate themselves.
+- **Not built yet:** email invitations and "forgot password" by email. For now an administrator
+  resets the password.
+
 ## Offline selling
 
 Each till (a browser that has signed in once) keeps a copy of the catalogue, prices, barcodes,
