@@ -22,6 +22,7 @@ PERMISSIONS: dict[str, str] = {
     "customer:write": "Create and edit customers",
     "report:read": "View reports",
     "register:manage": "Open and close the cash register",
+    "sync:resolve": "Resolve offline sync conflicts and see all devices' sales",
 }
 
 _ALL = set(PERMISSIONS)

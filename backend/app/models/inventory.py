@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Identity,
     Index,
     Integer,
     String,
@@ -48,6 +50,9 @@ class StockMovement(UUIDPrimaryKey, Base):
         Index("ix_stock_movements_variant_store_created", "variant_id", "store_id", "created_at"),
     )
 
+    # A strict, database-assigned order. Movements written in one transaction share a timestamp,
+    # so the timestamp alone cannot say which came first.
+    seq: Mapped[int] = mapped_column(BigInteger, Identity(always=True), index=True)
     business_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("businesses.id"), index=True)
     store_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("stores.id"), index=True)
     variant_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("product_variants.id"))

@@ -198,9 +198,9 @@ def list_movements(
     )
     if variant_id:
         stmt = stmt.where(StockMovement.variant_id == variant_id)
-    stmt = (
-        stmt.order_by(StockMovement.created_at.desc(), StockMovement.id).limit(limit).offset(offset)
-    )
+    # Newest first by the ledger's own sequence: a timestamp cannot order movements that were
+    # written in the same transaction.
+    stmt = stmt.order_by(StockMovement.seq.desc()).limit(limit).offset(offset)
     return list(db.scalars(stmt))
 
 

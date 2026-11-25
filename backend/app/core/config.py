@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     gst_slab_basis: Literal["after_discount", "before_discount"] = "after_discount"
     # Discounts above this share of a line need the sale:discount permission.
     free_discount_percent: int = 10
+    # Offline POS rules (plan item D2). Devices read these from the catalogue snapshot.
+    offline_warn_hours: int = 24  # warn when the device's catalogue is older than this
+    offline_block_hours: int = 72  # stop offline selling when it is older than this
+    offline_max_sale_age_days: int = 7  # older offline sales need a manager to review them
+    sync_batch_max: int = 50
     media_dir: str = "media"
     max_image_bytes: int = 5 * 1024 * 1024
     cors_origins: list[str] = ["http://localhost:5173"]

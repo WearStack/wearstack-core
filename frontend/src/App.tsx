@@ -6,6 +6,7 @@ import { SetupPage } from '@/features/auth/SetupPage'
 import { AppLayout } from '@/pages/AppLayout'
 import { PosPage } from '@/features/pos/PosPage'
 import { ReportsPage } from '@/features/reports/ReportsPage'
+import { SyncPage } from '@/features/sync/SyncPage'
 import { CustomersPage } from '@/pages/CustomersPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { PurchasesPage } from '@/pages/PurchasesPage'
@@ -42,6 +43,14 @@ export default function App() {
             element={
               <RequirePermission permission="sale:create">
                 <PosPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="sync"
+            element={
+              <RequirePermission permission="sale:create">
+                <SyncPage />
               </RequirePermission>
             }
           />

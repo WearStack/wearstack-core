@@ -48,6 +48,15 @@ A real browser drives the running stack through a shop's first day (needs an emp
 
 Set `BASE_URL` to run it against another deployment, e.g. the production stack.
 
+## Tests
+- Backend: `cd backend && uv run pytest` (needs `docker compose up db -d`)
+- Offline logic in the browser: `cd frontend && npm test` (Vitest, with a fake IndexedDB)
+- The browser's offline money rules and the server's are checked against one shared file,
+  `shared/offline-vectors.json`, generated from the server:
+  `cd backend && PYTHONPATH=. uv run python ../shared/make_offline_vectors.py`
+- End to end: see above. `02-offline.spec.ts` takes the browser offline for real; with
+  `E2E_PROD=1 BASE_URL=http://localhost:8081` it also tests reloading offline via the service worker.
+
 ## Production
 See [docs/operations.md](docs/operations.md): deployment, nightly backups, restore, updating.
 

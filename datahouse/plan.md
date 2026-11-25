@@ -16,7 +16,7 @@ Derived from `wearstack_project_brief.md`. Status: **draft for review**.
 | # | Decision | Needed by | Options / recommendation |
 |---|----------|-----------|--------------------------|
 | D1 | Offline invoice numbering | Phase 1 schema | **RESOLVED:** offline receipts are provisional; server assigns final GST number on sync. Alternative: per-device pre-allocated series (needs compliance validation). |
-| D2 | Offline overselling policy | Phase 5 | Per-variant offline cap vs. warn-only; conflicts flagged, never silently overwritten. |
+| D2 | Offline overselling policy | Phase 5 | **RESOLVED:** a till never sells more than the stock it knows about (cached stock minus its own unsent sales); warn after 24 h without a catalogue refresh, stop after 72 h. A shortfall found at sync becomes a conflict a manager accepts (visible, reasoned stock correction; never negative) or rejects. |
 | D3 | UPI/card handling | Phase 3 | Manual cashier confirmation (initial) vs. gateway integration (later). |
 | D4 | Celery/Redis/S3 in Release 1 | Phase 0 | **RESOLVED:** defer. Synchronous reports, local/optional image storage first. |
 | D5 | Repo layout | Phase 0 | **RESOLVED:** monorepo — `backend/`, `frontend/`, `docs/`, `datahouse/`. |
@@ -59,7 +59,7 @@ Derived from `wearstack_project_brief.md`. Status: **draft for review**.
 - Hardening: E2E Playwright suite for the billing flow, seed data, deployment config.
 - **Exit:** Release 1 usable in a real shop for billing + inventory.
 
-### Phase 5 — Offline POS & Sync (Release 2)
+### Phase 5 — Offline POS & Sync (Release 2) — BUILT
 - Dexie schema: catalogue cache, barcode index, pending sales queue.
 - Service worker/PWA install, offline detection, provisional receipts (D1).
 - `sync_operations` + idempotent sync endpoint keyed by `device_id` + client transaction ID.
@@ -79,6 +79,12 @@ Derived from `wearstack_project_brief.md`. Status: **draft for review**.
 - Margin reporting (cost + discounts + returns + `expenses`).
 - Customer segmentation, loyalty points, WhatsApp campaigns with consent tracking.
 - Introduce Celery + Redis here if report load requires it.
+
+### Final deliverable: project presentation (after all phases)
+- One PowerPoint deck (.pptx) summarising the whole project: the problem and users, the product and its
+  differentiators, architecture, what each phase delivered, screenshots of the finished app, results
+  (tests, security and compliance decisions) and what comes next.
+- Built last, once every phase is done, so it describes the real finished product.
 
 ## 4. Cross-Cutting Concerns
 

@@ -63,6 +63,37 @@ the next invoice continuing the sequence with no gap or duplicate.
 
 Migrations run automatically when the backend starts. Roll back by restoring the backup you took.
 
+## Offline selling
+
+Each till (a browser that has signed in once) keeps a copy of the catalogue, prices, barcodes,
+stock and customers on the device, and can keep selling when the internet or the server is down.
+
+- **Provisional receipts.** An offline sale gets a receipt like `OFF-A1B2-0007`. It says plainly that
+  it is **not a GST tax invoice**. The numbered tax invoice is issued when the sale reaches the
+  server (normally within seconds of the connection returning). Confirm with your accountant that
+  handing a provisional receipt to the customer is acceptable for how you trade (plan item D6).
+- **Syncing.** Queued sales are sent automatically when the connection is back, oldest first, and
+  retried with backoff. A sale is never lost and never booked twice, even if the connection drops
+  halfway through a request. A sale is dated when it really happened; its invoice is numbered when
+  it syncs. Reports use the sale date.
+- **Stock and prices.** A till will not sell more than the stock it knows about (its copy, less what
+  it has already sold offline). If stock turns out to be short on the server (for example another
+  till sold the last item), or a price changed, or the product was deactivated, or the sale is more
+  than 7 days old, the sale is **held as a conflict** and nothing is booked. A manager decides on
+  the **Sync** page: *Accept* books it as the customer was charged (a stock shortfall is corrected
+  with a visible, reasoned stock adjustment; stock never goes negative), *Reject* voids it (a note
+  is required), *Try again* re-runs it (for example after receiving stock).
+- **How old a copy may be.** The catalogue refreshes about every 10 minutes while online. A till
+  warns after 24 hours without a refresh and stops offline selling after 72 hours
+  (`OFFLINE_WARN_HOURS`, `OFFLINE_BLOCK_HOURS`, `OFFLINE_MAX_SALE_AGE_DAYS`).
+- **Opening with no connection.** The app is installable and loads from the device. A till that was
+  signed in can reopen offline as the remembered user and sell. Anyone using that device offline
+  acts as that user, so sign out on shared or unattended devices: signing out forgets the user but
+  keeps unsent sales, which are sent after the next sign-in. The connection badge in the top bar
+  and the **Sync** page show what is waiting.
+- **Not available offline:** returns, purchases, stock changes, reports and administration.
+- **Updates** never reload the app in the middle of a sale: a banner offers "Reload now".
+
 ## Things to know
 
 - Sales, invoices, payments and the stock ledger cannot be edited or deleted, even with SQL.

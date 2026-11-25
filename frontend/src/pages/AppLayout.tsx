@@ -1,6 +1,8 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useActiveStore } from '@/lib/useActiveStore'
+import { useOfflineReadiness } from '@/offline/boot'
+import { useOfflineSummary } from '@/offline/hooks'
 import { useAuthStore } from '@/stores/auth'
 import { useCartStore } from '@/stores/cart'
 import { useUiStore } from '@/stores/ui'
@@ -21,6 +23,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
     items: [
       { to: '/', label: 'Overview', glyph: '▦', end: true },
       { to: '/pos', label: 'Point of Sale', glyph: '🛒', permission: 'sale:create' },
+      { to: '/sync', label: 'Sync', glyph: '⇅', permission: 'sale:create' },
     ],
   },
   {
@@ -126,8 +129,37 @@ function Sidebar() {
   )
 }
 
+/** Connection and unsent-sales indicator; opens the Sync status page. */
+function ConnectionBadge({ storeId }: { storeId: string }) {
+  const { online, pending, needsAttention } = useOfflineSummary(storeId)
+  return (
+    <Link
+      to="/sync"
+      aria-label="Sync status"
+      className="flex items-center gap-1.5 rounded-full border border-ws-line px-2.5 py-1 text-xs font-semibold text-ws-ink"
+    >
+      <span
+        aria-hidden
+        className={`size-2 rounded-full ${online ? 'bg-green-500' : 'bg-amber-500'}`}
+      />
+      <span>{online ? 'Online' : 'Offline'}</span>
+      {pending > 0 && (
+        <span className="rounded-full bg-amber-100 px-1.5 text-amber-800">
+          {pending} {online ? 'to send' : 'saved'}
+        </span>
+      )}
+      {needsAttention > 0 && (
+        <span className="rounded-full bg-red-100 px-1.5 text-red-700">
+          {needsAttention} to review
+        </span>
+      )}
+    </Link>
+  )
+}
+
 function TopBar() {
   const { me, logout } = useAuthStore()
+  const canSell = useAuthStore((s) => s.can('sale:create'))
   const { stores, store } = useActiveStore()
   const setActive = useUiStore((s) => s.setActiveStoreId)
   const clearCart = useCartStore((s) => s.clear)
@@ -164,6 +196,7 @@ function TopBar() {
         )}
       </div>
       <div className="flex shrink-0 items-center gap-3">
+        {canSell && store && <ConnectionBadge storeId={store.id} />}
         <div
           aria-hidden
           className="grid size-10 place-items-center rounded-full bg-ws-orange text-sm font-bold text-ws-ink"
@@ -189,11 +222,32 @@ function TopBar() {
   )
 }
 
+function UpdateNotice() {
+  const applyUpdate = useUiStore((s) => s.applyUpdate)
+  if (!applyUpdate) return null
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center justify-between gap-2 bg-ws-blue px-4 py-2 text-sm text-white"
+    >
+      <span>A new version of Wearstack is ready. Finish the current sale first, then reload.</span>
+      <button
+        className="rounded-md bg-white px-3 py-1 font-semibold text-ws-ink"
+        onClick={applyUpdate}
+      >
+        Reload now
+      </button>
+    </div>
+  )
+}
+
 export function AppLayout() {
+  useOfflineReadiness()
   return (
     <div className="flex min-h-screen bg-ws-bg">
       <Sidebar />
       <div className="min-w-0 flex-1">
+        <UpdateNotice />
         <TopBar />
         <main className="mx-auto max-w-[1500px] p-4 sm:p-6">
           <Outlet />

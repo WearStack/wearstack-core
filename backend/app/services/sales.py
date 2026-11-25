@@ -2,6 +2,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
@@ -53,10 +54,37 @@ class PricedSale:
 
 
 class SaleError(Exception):
-    def __init__(self, status: int, message: str) -> None:
+    """A sale that cannot be made. `code` lets callers (offline sync) tell a conflict a manager
+    can resolve (insufficient_stock, inactive_product) from a plain failure."""
+
+    def __init__(
+        self,
+        status: int,
+        message: str,
+        code: str = "invalid",
+        details: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message)
         self.status = status
         self.message = message
+        self.code = code
+        self.details = details or {}
+
+
+@dataclass
+class SaleOptions:
+    """Used when an offline sale is synced or a manager accepts a conflict.
+
+    unit_prices:    what the customer was actually charged per line (index-aligned with the items).
+    allow_inactive: sell a product that has been deactivated since the sale happened.
+    shortfall_reason: if set, missing stock is corrected with a visible adjustment (with this
+                    reason) instead of refusing the sale. Never silent: it is in the ledger.
+    """
+
+    unit_prices: list[Decimal] | None = None
+    allow_inactive: bool = False
+    shortfall_reason: str | None = None
+    resolver_id: uuid.UUID | None = None
 
 
 def find_existing(db: Session, business_id: uuid.UUID, key: uuid.UUID) -> Sale | None:
@@ -70,9 +98,17 @@ def _label(v: ProductVariant) -> str:
 
 
 def create_sale(
-    db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None
+    db: Session,
+    ctx: AuthContext,
+    body: SaleIn,
+    now: datetime | None = None,
+    issued_at: datetime | None = None,
+    options: SaleOptions | None = None,
 ) -> tuple[Sale, bool]:
     """Creates a finalised sale in one transaction: stock, tax, invoice number, payments.
+
+    `now` is when the sale happened (the supply date: it picks the GST rate and dates the sale);
+    `issued_at` is when the invoice is issued and numbered (they differ for synced offline sales).
     Returns (sale, replayed). A retry with the same idempotency key returns the first result."""
     existing = find_existing(db, ctx.business_id, body.idempotency_key)
     if existing:
@@ -80,7 +116,7 @@ def create_sale(
             raise SaleError(409, "This idempotency key was already used for a different sale")
         return existing, True
     try:
-        sale = _create(db, ctx, body, now)
+        sale = _create(db, ctx, body, now, issued_at, options)
         db.commit()
         return sale, False
     except IntegrityError:
@@ -96,7 +132,11 @@ def create_sale(
 
 
 def price_sale(
-    db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None
+    db: Session,
+    ctx: AuthContext,
+    body: SaleIn,
+    now: datetime | None = None,
+    options: SaleOptions | None = None,
 ) -> PricedSale:
     """Validates the basket and computes prices, GST and totals. Writes nothing."""
     settings = get_settings()
@@ -110,7 +150,9 @@ def price_sale(
     if not (store.gstin or business.gstin):
         # A GST invoice must carry the seller's GSTIN, and an unregistered seller cannot charge GST.
         raise SaleError(
-            409, "Add your GSTIN in Stores before billing: a GST invoice needs the seller's GSTIN"
+            409,
+            "Add your GSTIN in Stores before billing: a GST invoice needs the seller's GSTIN",
+            code="no_gstin",
         )
 
     customer: Customer | None = None
@@ -127,16 +169,23 @@ def price_sale(
     interstate = place_of_supply != store.state_code
 
     lines: list[tuple[SaleItem, ProductVariant]] = []
-    for item in body.items:
+    for index, item in enumerate(body.items):
         variant = db.get(ProductVariant, item.variant_id)
         product = db.get(Product, variant.product_id) if variant else None
         if variant is None or product is None or variant.business_id != ctx.business_id:
-            raise SaleError(422, "Unknown product variant")
-        if not (variant.is_active and product.is_active):
-            raise SaleError(409, f"{product.name} is no longer available")
-        unit_price = (
-            variant.selling_price if variant.selling_price is not None else product.selling_price
-        )
+            raise SaleError(422, "Unknown product variant", code="unknown_variant")
+        if not (variant.is_active and product.is_active) and not (
+            options and options.allow_inactive
+        ):
+            raise SaleError(409, f"{product.name} is no longer available", code="inactive_product")
+        if options and options.unit_prices is not None:
+            unit_price = options.unit_prices[index]  # what the customer was charged
+        else:
+            unit_price = (
+                variant.selling_price
+                if variant.selling_price is not None
+                else product.selling_price
+            )
         gross = gst.money(unit_price * item.quantity)
         discount = gst.money(item.discount)
         if discount > gross:
@@ -147,16 +196,19 @@ def price_sale(
                 403,
                 f"Discounts above {settings.free_discount_percent}% "
                 "need the sale:discount permission",
+                code="discount_not_allowed",
             )
         if product.tax_rate_id is None:
-            raise SaleError(422, f"{product.name} has no GST rate configured")
+            raise SaleError(422, f"{product.name} has no GST rate configured", code="no_tax_rate")
         slab_price = gst.slab_unit_price(
             unit_price, item.quantity, discount, settings.gst_slab_basis
         )
         rate = resolve_tax_rate(db, product.tax_rate_id, on, slab_price)
         if rate is None:
             raise SaleError(
-                422, f"No GST rate is in force for {product.name} at this price on {on.isoformat()}"
+                422,
+                f"No GST rate is in force for {product.name} at this price on {on.isoformat()}",
+                code="no_tax_rate",
             )
         tax = gst.split_inclusive(gross - discount, rate.rate, interstate)
         lines.append(
@@ -207,10 +259,19 @@ def price_sale(
     )
 
 
-def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = None) -> Sale:
-    priced = price_sale(db, ctx, body, now)
+def _create(
+    db: Session,
+    ctx: AuthContext,
+    body: SaleIn,
+    now: datetime | None = None,
+    issued_at: datetime | None = None,
+    options: SaleOptions | None = None,
+) -> Sale:
+    priced = price_sale(db, ctx, body, now, options)
     store, business, customer = priced.store, priced.business, priced.customer
     lines, now = priced.lines, priced.now
+    issued = issued_at or now
+    corrections: list[dict[str, Any]] = []
     items = [i for i, _ in lines]
     grand_total = priced.grand_total
 
@@ -256,9 +317,44 @@ def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = 
                 reference_id=sale.id,
             )
         except InsufficientStock as e:
-            raise SaleError(
-                409, f"Not enough stock for {line.product_name} ({line.variant_label}): {e}"
-            ) from None
+            if not (options and options.shortfall_reason):
+                raise SaleError(
+                    409,
+                    f"Not enough stock for {line.product_name} ({line.variant_label}): {e}",
+                    code="insufficient_stock",
+                    details={
+                        "variant_id": str(variant.id),
+                        "requested": e.requested,
+                        "available": e.available,
+                    },
+                ) from None
+            # The goods were already sold, so the stock record was wrong. Correct it visibly,
+            # with a reason in the ledger, rather than refusing or hiding it.
+            missing = e.requested - e.available
+            apply_movement(
+                db,
+                business_id=ctx.business_id,
+                store_id=store.id,
+                variant_id=variant.id,
+                movement_type="adjustment",
+                delta=missing,
+                user_id=options.resolver_id or ctx.user.id,
+                reason=options.shortfall_reason,
+                reference_type="sale",
+                reference_id=sale.id,
+            )
+            corrections.append({"variant_id": str(variant.id), "added": missing})
+            apply_movement(
+                db,
+                business_id=ctx.business_id,
+                store_id=store.id,
+                variant_id=variant.id,
+                movement_type="sale",
+                delta=-line.quantity,
+                user_id=ctx.user.id,
+                reference_type="sale",
+                reference_id=sale.id,
+            )
     for p in body.payments:
         db.add(
             Payment(
@@ -271,7 +367,7 @@ def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = 
             )
         )
 
-    fy = gst.financial_year(now.date())
+    fy = gst.financial_year(issued.astimezone(IST).date())  # numbered when issued, not when sold
     number = next_number(
         db,
         business_id=ctx.business_id,
@@ -288,7 +384,7 @@ def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = 
             doc_type="invoice",
             number=number,
             financial_year=fy,
-            issued_at=now,
+            issued_at=issued,
             seller={
                 "business_name": business.legal_name or business.name,
                 "gstin": store.gstin or business.gstin,
@@ -312,7 +408,12 @@ def _create(db: Session, ctx: AuthContext, body: SaleIn, now: datetime | None = 
         action="sale.created",
         entity_type="sale",
         entity_id=sale.id,
-        after={"invoice": number, "total": str(grand_total), "lines": len(items)},
+        after={
+            "invoice": number,
+            "total": str(grand_total),
+            "lines": len(items),
+            **({"stock_corrections": corrections} if corrections else {}),
+        },
     )
     db.flush()
     return sale

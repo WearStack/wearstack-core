@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatMoney } from '@/lib/format'
@@ -5,13 +6,23 @@ import type { Quote } from '@/lib/types'
 import { useCartStore } from '@/stores/cart'
 import { CustomerPicker } from './CustomerPicker'
 
+/** What an offline till can show: the tax-inclusive total (the GST breakdown comes with the invoice). */
+export interface OfflineTotals {
+  subtotal: string
+  roundOff: string
+  grandTotal: string
+}
+
 interface Props {
   quote: Quote | undefined
   quoteError: string | null
   invalidDiscount: boolean
+  offlineTotals?: OfflineTotals | null
+  /** Replaces the customer search, which needs the server, with one that works offline. */
+  customerSlot?: ReactNode
 }
 
-export function Cart({ quote, quoteError, invalidDiscount }: Props) {
+export function Cart({ quote, quoteError, invalidDiscount, offlineTotals, customerSlot }: Props) {
   const { lines, setQty, setDiscount, remove } = useCartStore()
   const count = lines.reduce((n, l) => n + l.qty, 0)
 
@@ -23,7 +34,7 @@ export function Cart({ quote, quoteError, invalidDiscount }: Props) {
           {count} item{count === 1 ? '' : 's'}
         </span>
       </h2>
-      <CustomerPicker />
+      {customerSlot ?? <CustomerPicker />}
       <ul className="mt-3 divide-y divide-ws-line">
         {lines.map((l) => (
           <li key={l.variantId} className="space-y-2 py-3">
@@ -87,6 +98,22 @@ export function Cart({ quote, quoteError, invalidDiscount }: Props) {
             <p className="text-destructive">Enter discounts as amounts like 50 or 49.50.</p>
           )}
           {quoteError && <p className="text-destructive">{quoteError}</p>}
+          {offlineTotals && (
+            <>
+              <Row
+                label="Round off"
+                value={offlineTotals.roundOff}
+                hide={offlineTotals.roundOff === '0.00'}
+              />
+              <div className="flex justify-between border-t border-ws-line pt-2 text-base font-bold text-ws-ink">
+                <span>Total (incl. GST)</span>
+                <span>{formatMoney(offlineTotals.grandTotal)}</span>
+              </div>
+              <p className="text-xs text-ws-muted">
+                GST is included in the price. The tax breakup appears on the final invoice.
+              </p>
+            </>
+          )}
           {quote && (
             <>
               <Row

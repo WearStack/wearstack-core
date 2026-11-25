@@ -33,3 +33,28 @@ def resolve_tax_rate(
             (TaxRate.max_unit_price.is_(None)) | (TaxRate.max_unit_price >= unit_price),
         )
     return db.scalars(stmt.order_by(TaxRate.effective_from.desc())).first()
+
+
+def load_rates(db: Session, business_id: uuid.UUID) -> dict[uuid.UUID, TaxRate]:
+    """All of a business's rate rows, for resolving many products without a query each."""
+    return {r.id: r for r in db.scalars(select(TaxRate).where(TaxRate.business_id == business_id))}
+
+
+def pick_rate(
+    rates: dict[uuid.UUID, TaxRate], tax_rate_id: uuid.UUID | None, on: date, unit_price: Decimal
+) -> TaxRate | None:
+    """The same rule as resolve_tax_rate, over rows already in memory: the row of the same named
+    class whose window covers `on` and whose slab (min < price <= max) contains the price."""
+    base = rates.get(tax_rate_id) if tax_rate_id else None
+    if base is None:
+        return None
+    candidates = [
+        r
+        for r in rates.values()
+        if r.name == base.name
+        and r.effective_from <= on
+        and (r.effective_to is None or r.effective_to >= on)
+        and (r.min_unit_price is None or r.min_unit_price < unit_price)
+        and (r.max_unit_price is None or r.max_unit_price >= unit_price)
+    ]
+    return max(candidates, key=lambda r: r.effective_from, default=None)

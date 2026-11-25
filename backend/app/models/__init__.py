@@ -19,6 +19,7 @@ from app.models.inventory import Inventory, StockMovement
 from app.models.parties import Customer, Supplier
 from app.models.purchasing import Purchase, PurchaseItem
 from app.models.sales import GstDocument, InvoiceSequence, Payment, Sale, SaleItem
+from app.models.sync import SyncOperation
 from app.models.tenancy import Business, Device, Store
 
 __all__ = [
@@ -46,6 +47,7 @@ __all__ = [
     "StockMovement",
     "Store",
     "Supplier",
+    "SyncOperation",
     "TaxRate",
     "User",
     "UserStoreAccess",

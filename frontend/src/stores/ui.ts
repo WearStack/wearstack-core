@@ -12,6 +12,9 @@ const read = (): string => {
 interface UiState {
   online: boolean
   setOnline: (online: boolean) => void
+  /** Set when a new version of the app is waiting; calling it reloads into that version. */
+  applyUpdate: (() => void) | null
+  setApplyUpdate: (fn: (() => void) | null) => void
   /** The store the user is working in. Operational screens and the Overview follow it. */
   activeStoreId: string
   setActiveStoreId: (id: string) => void
@@ -20,6 +23,8 @@ interface UiState {
 export const useUiStore = create<UiState>((set) => ({
   online: navigator.onLine,
   setOnline: (online) => set({ online }),
+  applyUpdate: null,
+  setApplyUpdate: (applyUpdate) => set({ applyUpdate }),
   activeStoreId: read(),
   setActiveStoreId: (activeStoreId) => {
     try {

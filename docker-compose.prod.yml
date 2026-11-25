@@ -27,6 +27,9 @@ services:
       MEDIA_DIR: /app/media
       GST_SLAB_BASIS: ${GST_SLAB_BASIS:-after_discount}
       FREE_DISCOUNT_PERCENT: ${FREE_DISCOUNT_PERCENT:-10}
+      OFFLINE_WARN_HOURS: ${OFFLINE_WARN_HOURS:-24}
+      OFFLINE_BLOCK_HOURS: ${OFFLINE_BLOCK_HOURS:-72}
+      OFFLINE_MAX_SALE_AGE_DAYS: ${OFFLINE_MAX_SALE_AGE_DAYS:-7}
       CORS_ORIGINS: "[]"
     volumes: [media:/app/media]
     depends_on:

@@ -1,12 +1,18 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { api, apiBlob } from '@/lib/api'
+import { api, ApiError, apiBlob } from '@/lib/api'
 import { fromPaise, toPaise } from '@/lib/money'
 import { useActiveStore } from '@/lib/useActiveStore'
 import type { Quote, SaleResult } from '@/lib/types'
+import { useConnection } from '@/offline/connection'
+import { useAuthStore } from '@/stores/auth'
+import { usePosStore } from '@/stores/pos'
 import { useCartStore } from '@/stores/cart'
 import { Cart } from './Cart'
+import { OfflinePos } from './OfflinePos'
+import { ReceiptNotice } from './ReceiptNotice'
+import { saveSaleLocally } from './offlineSale'
 import { Payments } from './Payments'
 import { paymentsReady, type PaymentRow } from './paymentRules'
 import { ProductSearch } from './ProductSearch'
@@ -21,9 +27,12 @@ interface Done {
 export function PosPage() {
   const qc = useQueryClient()
   const { lines, customer, saleKey, clear } = useCartStore()
-  const { storeId } = useActiveStore()
+  const { storeId, store } = useActiveStore()
+  const online = useConnection((s) => s.online)
+  const me = useAuthStore((s) => s.me)
   const [payments, setPayments] = useState<PaymentRow[]>([])
   const [done, setDone] = useState<Done | null>(null)
+  const showReceipt = usePosStore((s) => s.show)
 
   // Release the invoice's blob URL when it is replaced or the page closes.
   useEffect(() => () => void (done?.pdfUrl && URL.revokeObjectURL(done.pdfUrl)), [done])
@@ -53,19 +62,46 @@ export function PosPage() {
   const quoteFresh = !quote.isPlaceholderData && !quote.isError && !!total
 
   const checkout = useMutation({
-    mutationFn: () =>
-      api<SaleResult>('/sales', 'POST', {
-        idempotency_key: saleKey,
-        store_id: storeId,
-        customer_id: customer?.id ?? null,
-        items,
-        payments: payments.map((p) => ({
-          method: p.method,
-          amount: fromPaise(toPaise(p.amount) ?? 0),
-          reference: p.method === 'cash' ? null : p.reference.trim(),
-        })),
-      }),
-    onSuccess: async (sale) => {
+    mutationFn: async () => {
+      try {
+        const sale = await api<SaleResult>('/sales', 'POST', {
+          idempotency_key: saleKey,
+          store_id: storeId,
+          customer_id: customer?.id ?? null,
+          items,
+          payments: payments.map((p) => ({
+            method: p.method,
+            amount: fromPaise(toPaise(p.amount) ?? 0),
+            reference: p.method === 'cash' ? null : p.reference.trim(),
+          })),
+        })
+        return { kind: 'online' as const, sale }
+      } catch (e) {
+        // The connection dropped during checkout. The sale may or may not have reached the server;
+        // saving it under the same sale key makes either case safe (it is never booked twice).
+        if (e instanceof ApiError && e.network && me && total) {
+          const queued = await saveSaleLocally({
+            saleKey,
+            storeId,
+            me,
+            customer,
+            lines,
+            payments,
+            total,
+          })
+          return { kind: 'offline' as const, queued }
+        }
+        throw e
+      }
+    },
+    onSuccess: async (outcome) => {
+      if (outcome.kind === 'offline') {
+        showReceipt(outcome.queued, true)
+        clear()
+        setPayments([])
+        return
+      }
+      const sale = outcome.sale
       let pdfUrl: string | null = null
       try {
         pdfUrl = URL.createObjectURL(await apiBlob(`/sales/${sale.id}/invoice.pdf`))
@@ -88,6 +124,9 @@ export function PosPage() {
   const canComplete =
     quoteFresh && totalPaise !== null && paymentsReady(payments, totalPaise) && !checkout.isPending
 
+  // No connection: sell from the copy of the catalogue on this device.
+  if (!online && storeId) return <OfflinePos storeId={storeId} storeName={store?.name ?? ''} />
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -96,6 +135,8 @@ export function PosPage() {
           <p className="text-sm text-ws-muted">Create a new customer transaction.</p>
         </div>
       </div>
+
+      <ReceiptNotice storeName={store?.name ?? ''} />
 
       {done && (
         <div

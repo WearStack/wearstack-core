@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, engine
 from app.models import Inventory, StockMovement
 from app.services.inventory import InsufficientStock, apply_movement
 
@@ -246,3 +246,39 @@ def test_stock_changes_are_audited(
         ("stock.opening", 4),
     ]
     assert logs[0]["after"]["reason"] == "sample given"
+
+
+def test_movements_written_in_one_transaction_keep_their_order(
+    client: TestClient, owner: dict[str, str], store_id: str, make_product: Any
+) -> None:
+    """A stock correction and the sale that needed it are one transaction and one timestamp; the
+    history must still show them in the order they happened, every time."""
+    v = uuid.UUID(make_product()["variants"][0]["id"])
+    me = client.get("/auth/me", headers=owner).json()
+    biz, user, store = uuid.UUID(me["business_id"]), uuid.UUID(me["id"]), uuid.UUID(store_id)
+    for _ in range(25):  # a random tie-break would get this wrong about half of the time
+        with SessionLocal() as db:
+            for kind, delta in (("adjustment", 2), ("sale", -1), ("adjustment", 3), ("sale", -2)):
+                apply_movement(
+                    db,
+                    business_id=biz,
+                    store_id=store,
+                    variant_id=v,
+                    movement_type=kind,
+                    delta=delta,
+                    user_id=user,
+                )
+            db.commit()
+        history = client.get(
+            "/inventory/movements",
+            headers=owner,
+            params={"store_id": store_id, "variant_id": str(v), "limit": 4},
+        ).json()
+        assert [m["quantity_delta"] for m in reversed(history)] == [2, -1, 3, -2]
+        assert [m["balance_after"] for m in reversed(history)][1:] == [
+            history[-1]["balance_after"] - 1,
+            history[-1]["balance_after"] + 2,
+            history[-1]["balance_after"],
+        ]
+        with engine.begin() as conn:
+            conn.exec_driver_sql("TRUNCATE stock_movements, inventory")

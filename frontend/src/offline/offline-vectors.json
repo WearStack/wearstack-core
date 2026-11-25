@@ -1,0 +1,251 @@
+{
+  "totals": [
+    {
+      "lines": [
+        {
+          "unit_price": "1299.00",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "1299.00",
+      "grand_total": "1299.00",
+      "round_off": "0.00"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "1299.00",
+          "quantity": 2,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "2598.00",
+      "grand_total": "2598.00",
+      "round_off": "0.00"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "999.99",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "999.99",
+      "grand_total": "1000.00",
+      "round_off": "0.01"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "999.50",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "999.50",
+      "grand_total": "1000.00",
+      "round_off": "0.50"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "999.49",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "999.49",
+      "grand_total": "999.00",
+      "round_off": "-0.49"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "0.50",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "0.50",
+      "grand_total": "1.00",
+      "round_off": "0.50"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "0.49",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "0.49",
+      "grand_total": "0.00",
+      "round_off": "-0.49"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "100.00",
+          "quantity": 3,
+          "discount": "0.50"
+        }
+      ],
+      "subtotal": "299.50",
+      "grand_total": "300.00",
+      "round_off": "0.50"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "1299.00",
+          "quantity": 1,
+          "discount": "129.90"
+        },
+        {
+          "unit_price": "599.00",
+          "quantity": 2,
+          "discount": "59.80"
+        }
+      ],
+      "subtotal": "2307.30",
+      "grand_total": "2307.00",
+      "round_off": "-0.30"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "1899.00",
+          "quantity": 1,
+          "discount": "0.01"
+        }
+      ],
+      "subtotal": "1898.99",
+      "grand_total": "1899.00",
+      "round_off": "0.01"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "33.33",
+          "quantity": 3,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "99.99",
+      "grand_total": "100.00",
+      "round_off": "0.01"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "2499.99",
+          "quantity": 1,
+          "discount": "0"
+        },
+        {
+          "unit_price": "0.01",
+          "quantity": 1,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "2500.00",
+      "grand_total": "2500.00",
+      "round_off": "0.00"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "10.00",
+          "quantity": 10000,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "100000.00",
+      "grand_total": "100000.00",
+      "round_off": "0.00"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "1299.00",
+          "quantity": 1,
+          "discount": "1299.00"
+        }
+      ],
+      "subtotal": "0.00",
+      "grand_total": "0.00",
+      "round_off": "0.00"
+    },
+    {
+      "lines": [
+        {
+          "unit_price": "1.15",
+          "quantity": 7,
+          "discount": "0.05"
+        },
+        {
+          "unit_price": "2.35",
+          "quantity": 3,
+          "discount": "0"
+        }
+      ],
+      "subtotal": "15.05",
+      "grand_total": "15.00",
+      "round_off": "-0.05"
+    }
+  ],
+  "discount_limits": [
+    {
+      "gross": "1299.00",
+      "percent": 10,
+      "limit": "129.90"
+    },
+    {
+      "gross": "0.05",
+      "percent": 10,
+      "limit": "0.01"
+    },
+    {
+      "gross": "0.04",
+      "percent": 10,
+      "limit": "0.00"
+    },
+    {
+      "gross": "999.99",
+      "percent": 10,
+      "limit": "100.00"
+    },
+    {
+      "gross": "1.00",
+      "percent": 10,
+      "limit": "0.10"
+    },
+    {
+      "gross": "1299.00",
+      "percent": 0,
+      "limit": "0.00"
+    },
+    {
+      "gross": "1299.00",
+      "percent": 100,
+      "limit": "1299.00"
+    },
+    {
+      "gross": "33.33",
+      "percent": 15,
+      "limit": "5.00"
+    },
+    {
+      "gross": "0.01",
+      "percent": 50,
+      "limit": "0.01"
+    },
+    {
+      "gross": "12345.67",
+      "percent": 7,
+      "limit": "864.20"
+    }
+  ]
+}

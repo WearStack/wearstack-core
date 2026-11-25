@@ -18,6 +18,7 @@ from app.modules.roles.router import router as roles_router
 from app.modules.sales.router import router as sales_router
 from app.modules.setup.router import router as setup_router
 from app.modules.stores.router import router as stores_router
+from app.modules.sync.router import router as sync_router
 from app.modules.users.router import router as users_router
 
 
@@ -56,6 +57,7 @@ def create_app() -> FastAPI:
         sales_router,
         purchasing_router,
         reports_router,
+        sync_router,
     ):
         app.include_router(r)
 

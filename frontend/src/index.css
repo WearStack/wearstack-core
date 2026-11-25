@@ -139,3 +139,20 @@
   --color-ws-bg: #f3f6fb;
   --color-ws-line: #dfe7f1;
 }
+
+/* Printing a provisional receipt: show only the receipt, not the app around it. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #receipt,
+  #receipt * {
+    visibility: visible;
+  }
+  #receipt {
+    position: absolute;
+    inset: 0;
+    border: none;
+    background: white;
+  }
+}
